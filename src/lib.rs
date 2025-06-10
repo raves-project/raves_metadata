@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use error::IptcError;
+
+pub mod error;
 pub mod providers;
 
 /// Parsed IPTC.
@@ -13,5 +16,5 @@ pub struct Iptc {
 pub trait IptcProvider {
     /// Parses `self`, a media source, for its IPTC block(s) and returns them
     /// combined into one list of (key, value) pairs.
-    fn iptc(&self) -> Iptc;
+    fn iptc(&self) -> Result<Iptc, IptcError>;
 }
