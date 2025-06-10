@@ -1,0 +1,5 @@
+# avoid uploading build artifacts
+/target
+
+# we're a library
+Cargo.lock
