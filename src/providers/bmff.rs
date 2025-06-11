@@ -5,8 +5,6 @@
 //!
 //! [^1]: [An Overview of the ISO Base Media File Format by Thomas Stockhammer](https://www.youtube.com/watch?v=CLvR9FVYwWs?t=129)
 
-use core::ffi::c_char;
-
 use winnow::{
     binary::{be_u32, be_u64},
     error::ContextError,
@@ -56,10 +54,9 @@ fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
         // we do have a UUID! keep reading for the full string...
         CASE_UUID => {
             const LEN: usize = 16_usize;
-            let chars: [c_char; LEN] =
+            let chars: [u8; LEN] =
                 TryInto::<[u8; LEN]>::try_into(take(LEN).parse_next(&mut input)?)
-                    .map_err(|e| unreachable!("we always get 16 characters. but err: {e}"))?
-                    .map(|b: u8| b as c_char);
+                    .map_err(|e| unreachable!("we always get 16 characters. but err: {e}"))?;
 
             BoxType::Uuid(chars)
         }
@@ -70,7 +67,7 @@ fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
         //
         // since we're not exposing these values to users, we can keep the
         // ASCII format for a (very modest) perf boost lol
-        other => BoxType::Id(other.to_be_bytes().map(|b: u8| b as c_char)),
+        other => BoxType::Id(other.to_be_bytes()),
     };
 
     // note: we could perform some `FullBox` parsing now, but that'd require
@@ -121,11 +118,11 @@ impl BoxHeader {
 #[derive(Debug)]
 enum BoxType {
     /// Uses a short ID. No UUID.
-    Id([c_char; 4]),
+    Id([u8; 4]),
 
     /// The short ID was b'uuid', so the box's actual type is defined by this
     /// UUID.
-    Uuid([c_char; 16]),
+    Uuid([u8; 16]),
 }
 
 /// The size of a box.
