@@ -6,6 +6,7 @@ use error::IptcError;
 
 pub mod error;
 pub mod providers;
+pub mod util;
 
 /// Parsed IPTC.
 pub struct Iptc {
