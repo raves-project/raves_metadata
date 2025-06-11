@@ -7,6 +7,85 @@
 
 use core::ffi::c_char;
 
+use winnow::{
+    binary::{be_u32, be_u64},
+    error::ContextError,
+    prelude::*,
+    token::take,
+};
+
+/// Finds the next header in the file and parses it out.
+///
+/// This function assumes the byte slice starts at a header. This means you
+/// should pass it a byte slice with the previous header's offset applied, or
+/// the file is starting from the beginning.
+///
+/// Note that the input is mutated - skip `size - taken_bytes`.
+fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
+    // we're going to track the length of our box as we parse.
+    //
+    // the amount of bytes we took is given in the `BoxHeader`
+    let start_len = input.len();
+
+    // grab the raw "size" and "type" from the input.
+    //
+    // we parse these more below...
+    let raw_size: u32 = be_u32.parse_next(&mut input)?;
+    let raw_type: u32 = be_u32.parse_next(&mut input)?;
+
+    // parse the size into something more usable
+    let size: BoxSize = match raw_size {
+        // special case: we have a largesize to parse.
+        //
+        // and, well, we've already parsed the first two parts of this header.
+        // let's also take the `large_size`, which comes next. it's a `u64`...
+        1_u32 => BoxSize::Large(be_u64.parse_next(&mut input)?),
+
+        // special case: when it's zero, read to EOF (this is the end!)
+        0_u32 => BoxSize::Eof,
+
+        // for anything else, it's just a small box, so we use the raw size
+        _ => BoxSize::Small(raw_size),
+    };
+
+    // now, we'll grab the type.
+    //
+    // this means we check if we've got a UUID on our hands
+    const CASE_UUID: u32 = const { u32::from_be_bytes(*b"uuid") };
+    let ty: BoxType = match raw_type {
+        // we do have a UUID! keep reading for the full string...
+        CASE_UUID => {
+            const LEN: usize = 16_usize;
+            let chars: [c_char; LEN] =
+                TryInto::<[u8; LEN]>::try_into(take(LEN).parse_next(&mut input)?)
+                    .map_err(|e| unreachable!("we always get 16 characters. but err: {e}"))?
+                    .map(|b: u8| b as c_char);
+
+            BoxType::Uuid(chars)
+        }
+
+        // alright, we've just got a normal box type.
+        //
+        // we'll map it into `c_char`.
+        //
+        // since we're not exposing these values to users, we can keep the
+        // ASCII format for a (very modest) perf boost lol
+        other => BoxType::Id(other.to_be_bytes().map(|b: u8| b as c_char)),
+    };
+
+    // note: we could perform some `FullBox` parsing now, but that'd require
+    // a mapping of `type` to `has_full_box: bool`.
+    //
+    // ...and we don't really need it for this library lol
+    //
+    // so yea, we'll just return a naive `Box`...
+    Ok(BoxHeader {
+        header_len: (start_len - input.len()) as u8,
+        box_size: size,
+        box_type: ty,
+    })
+}
+
 /// A box's header says:
 ///
 /// - what "type" it is (might be UUID)
