@@ -1,0 +1,7 @@
+[package]
+name = "raves_iptc_types"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+yaml-rust2 = "0.10.3"
