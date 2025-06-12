@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 winnow = "0.7.11"
+quick-xml = "0.37.5"
