@@ -3,3 +3,6 @@
 
 # we're a library
 Cargo.lock
+
+# annoying macOS files
+.DS_Store
