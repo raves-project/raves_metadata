@@ -1,7 +1,3 @@
-[package]
-name = "raves_iptc"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-winnow = "0.7.11"
+[workspace]
+members = ["raves_metadata"]
+resolver = "3"
