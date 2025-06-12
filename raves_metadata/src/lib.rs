@@ -8,9 +8,11 @@ pub mod error;
 pub mod providers;
 pub mod util;
 
+pub type Pairs = HashMap<String, Vec<String>>;
+
 /// Parsed IPTC.
 pub struct Iptc {
-    pub pairs: HashMap<String, Vec<String>>,
+    pub pairs: Pairs,
 }
 
 /// A media file with IPTC support.
