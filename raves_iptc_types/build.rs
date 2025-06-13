@@ -280,6 +280,12 @@ pub mod structs {{
                 acc.push_str(struct_entry.ident);
                 acc.push_str(" {\n");
 
+                // make a list of XMP ID constants.
+                //
+                // we'll add 'em in an `impl` block at the end
+                let mut field_xmp_id_consts: Vec<String> =
+                    Vec::with_capacity(struct_entry.fields.len());
+
                 // add each field
                 for field in &struct_entry.fields {
                     acc.push_str(SPACING);
@@ -301,9 +307,36 @@ pub mod structs {{
 
                     // cap it off with a comma and a new line
                     acc.push_str(",\n");
+
+                    // finally, add an entry for its constant
+                    field_xmp_id_consts.push(format!(
+                        "pub const {}_XMP_ID: &str = \"{}\";",
+                        field.ident.to_ascii_uppercase(),
+                        field.xmp_ident
+                    ));
                 }
 
                 // cap it off with the brace and two newlines
+                acc.push_str(SPACING);
+                acc.push_str("}\n\n");
+
+                // now, add its constants into a new `impl` block.
+                //
+                // make the impl block...
+                acc.push_str(SPACING);
+                acc.push_str("impl ");
+                acc.push_str(struct_entry.ident);
+                acc.push_str(" {\n");
+
+                // add each `const`
+                for const_xmp_id in field_xmp_id_consts {
+                    acc.push_str(SPACING);
+                    acc.push_str(SPACING);
+                    acc.push_str(&const_xmp_id);
+                    acc.push('\n');
+                }
+
+                // end the `impl` block
                 acc.push_str(SPACING);
                 acc.push_str("}\n\n");
 
@@ -642,7 +675,7 @@ mod ipmd_struct_creation {
     use crate::{datatype::iptc_type_to_rust_type, string_case::camel_case_to_snake_case};
 
     /// A single field inside a larger [`IptcStruct`].
-    pub struct IptcStructField {
+    pub struct IptcStructField<'yaml> {
         /// A struct field's name.
         ///
         /// Ex: in `foo: Bar`, the `ident` is `foo`!
@@ -657,6 +690,12 @@ mod ipmd_struct_creation {
         ///
         /// Ex: if `true`, make `foo: Vec<Bar>` instead of `foo: Bar`.
         pub multi: bool,
+
+        /// This isn't really related to the creation of field itself, but each
+        /// in the standard is also assigned an XMP identifier.
+        ///
+        /// That's pretty helpful for parsing, so we'll remember it here.
+        pub xmp_ident: &'yaml str,
     }
 
     /// A full Rust struct generated from an entry in `ipmd_struct`.
@@ -667,7 +706,7 @@ mod ipmd_struct_creation {
         pub ident: &'yaml str,
 
         /// A list of fields contained inside the struct.
-        pub fields: Vec<IptcStructField>,
+        pub fields: Vec<IptcStructField<'yaml>>,
     }
 
     /// Creates a list of Rust structs from a given set of `ipmd_structs`.
@@ -726,7 +765,7 @@ mod ipmd_struct_creation {
     fn make_field<'yaml>(
         camel_case_ident: &'yaml str,
         desc: HashMap<&'yaml Yaml, &'yaml Yaml>,
-    ) -> Option<IptcStructField> {
+    ) -> Option<IptcStructField<'yaml>> {
         // ignore the any type included in the standard (`anypmdproperty`).
         //
         // it'd require special handling, and currently, there is no listed
@@ -735,16 +774,18 @@ mod ipmd_struct_creation {
             return None;
         }
 
-        // we need to parse the field's description for three things:
+        // we need to parse the field's description for these things:
         //
         // 1. `datatype`: maps to `Ty` in `iden: Ty`
         // 2. `dataformat`: says to use another struct as the field's type
         // 3. `propoccurrence`: whether to use `Vec<Ty>` instead
+        // 4. `XMPid`: the unique XMP identifier for this field
         //
         // then, we can generate a field for it!
         let mut maybe_datatype: Option<&str> = None;
         let mut dataformat: Option<&str> = None; // this is optional - we don't unwrap it
         let mut maybe_prop_occurrence_multi: Option<bool> = None;
+        let mut maybe_xmp_ident: Option<&str> = None;
         for (raw_prop_key, raw_prop_value) in desc {
             let prop_key: &str = raw_prop_key.as_str()?;
             let prop_value: &str = raw_prop_value.as_str()?;
@@ -766,15 +807,19 @@ mod ipmd_struct_creation {
                     _ => (),
                 },
 
+                // we can use this directly
+                "XMPid" => maybe_xmp_ident = Some(prop_value),
+
                 // ignore any other option; we don't care about them
                 _ => (),
             }
         }
 
         // great - now we need to unwrap all those...
-        let (datatype, multi) = (
+        let (datatype, multi, xmp_ident) = (
             maybe_datatype.expect("get property dataty"),
             maybe_prop_occurrence_multi.expect("get property occurance"),
+            maybe_xmp_ident.expect("get xmp ident"),
         );
 
         // map the ident into a Rusty name
@@ -784,7 +829,12 @@ mod ipmd_struct_creation {
         let ty: String = iptc_type_to_rust_type(datatype, dataformat);
 
         // ...and construct the field!
-        Some(IptcStructField { ident, ty, multi })
+        Some(IptcStructField {
+            ident,
+            ty,
+            multi,
+            xmp_ident,
+        })
     }
 }
 
