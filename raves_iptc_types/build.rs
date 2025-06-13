@@ -54,14 +54,12 @@ impl RustTypes<'_> {
 extern crate alloc;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
-#[non_exhaustive]
 pub enum IptcKeyValue {{
 {}}}
 
 {}
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Hash)]
-#[non_exhaustive]
 pub enum IptcKey {{
 {}}}
 
@@ -273,8 +271,6 @@ pub mod structs {{
                 // each struct gets its own Rust type
                 acc.push_str(SPACING);
                 acc.push_str("#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]\n");
-                acc.push_str(SPACING);
-                acc.push_str("#[non_exhaustive]\n");
                 acc.push_str(SPACING);
                 acc.push_str("pub struct ");
                 acc.push_str(struct_entry.ident);
