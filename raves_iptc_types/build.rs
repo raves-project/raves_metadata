@@ -180,6 +180,7 @@ pub mod structs {{
             ),
         };
 
+        // alright, time to generate the actual impl block!
         format!(
             r#"impl {} {{
     pub const fn name(&self) -> &'static str {{
@@ -213,6 +214,25 @@ pub mod structs {{
     }}
 
     pub const fn exif_id(&self) -> Option<&'static str> {{
+        match self {{
+{}        }}
+    }}
+
+    /// Whether this variant has a primitive type as its data.
+    pub const fn has_primitive_ty(&self) -> bool {{
+        match self {{
+{}        }}
+    }}
+
+    /// Whether this variant has a vector type (list of primitives) as its
+    /// data.
+    pub const fn has_vec_ty(&self) -> bool {{
+        match self {{
+{}        }}
+    }}
+
+    /// Whether this variant has a struct type as its data.
+    pub const fn has_struct_ty(&self) -> bool {{
         match self {{
 {}        }}
     }}
@@ -251,6 +271,25 @@ pub mod structs {{
             Self::optional_match_arms(
                 it().map(|v| (&v.ident, v.exif)).collect::<Vec<_>>(),
                 true,
+                to_gen
+            ),
+            //
+            // make data indicator types
+            Self::match_arms(
+                it().map(|v| (&v.ident, v.ty.is_primitive()))
+                    .collect::<Vec<_>>(),
+                false,
+                to_gen
+            ),
+            Self::match_arms(
+                it().map(|v| (&v.ident, v.ty.is_vec())).collect::<Vec<_>>(),
+                false,
+                to_gen
+            ),
+            Self::match_arms(
+                it().map(|v| (&v.ident, v.ty.is_struct()))
+                    .collect::<Vec<_>>(),
+                false,
                 to_gen
             ),
             from_xmp_id
@@ -977,6 +1016,30 @@ pub mod datatype {
             }
 
             Ok(())
+        }
+    }
+
+    impl Datatype<'_> {
+        /// Checks if we're a primitive.
+        pub fn is_primitive(&self) -> bool {
+            !self.vec
+                && match self.kind {
+                    DatatypeKind::Number | DatatypeKind::String => true,
+                    DatatypeKind::CrateType(..) => false,
+                }
+        }
+
+        /// Checks if we're a vec.
+        pub fn is_vec(&self) -> bool {
+            self.vec
+        }
+
+        /// Checks if we're a struct.
+        pub fn is_struct(&self) -> bool {
+            match self.kind {
+                DatatypeKind::CrateType(..) => true,
+                DatatypeKind::Number | DatatypeKind::String => false,
+            }
         }
     }
 
