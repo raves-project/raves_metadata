@@ -102,7 +102,7 @@ pub mod structs {{
                 acc.push_str(SPACING);
                 acc.push_str(vari);
                 acc.push('(');
-                acc.push_str(ty);
+                acc.push_str(&ty.to_string());
                 acc.push_str("),\n");
                 acc
             },
@@ -292,14 +292,8 @@ pub mod structs {{
                     acc.push_str(&field.ident);
                     acc.push_str(": ");
 
-                    // add the type... while also handling the "multi" case
-                    if field.multi {
-                        acc.push_str("::alloc::vec::Vec<");
-                        acc.push_str(&field.ty);
-                        acc.push('>');
-                    } else {
-                        acc.push_str(&field.ty);
-                    }
+                    // and add the type...
+                    acc.push_str(&field.ty.to_string());
 
                     // cap it off with a comma and a new line
                     acc.push_str(",\n");
@@ -479,7 +473,10 @@ pub mod structs {{
 mod ipmd_top_enum_creation {
     use yaml_rust2::Yaml;
 
-    use crate::{datatype::iptc_type_to_rust_type, string_case::kebab_case_to_pascal_case};
+    use crate::{
+        datatype::{Datatype, iptc_type_to_rust_type},
+        string_case::kebab_case_to_pascal_case,
+    };
 
     /// This is one of many enum variants in [`IptcEnum`].
     ///
@@ -492,7 +489,7 @@ mod ipmd_top_enum_creation {
 
         /// The variant's data type. Converted from an IPTC `datatype` +
         /// `dataformat` into a suitable Rust type.
-        pub ty: String,
+        pub ty: Datatype<'yaml>,
 
         // the rest of these fields are related to forming the methods +
         // associated functions for getting their static info (as defined in
@@ -560,23 +557,36 @@ mod ipmd_top_enum_creation {
             // grab the variant's description (all its subelements)
             let variant_desc = variant_value.as_hash().expect("variants are parents");
 
+            // grab its identifier...
+            let ident: String = kebab_case_to_pascal_case(
+                raw_enums[variant_key]
+                    .as_hash()
+                    .expect("key can become hash")
+                    .get(&Yaml::String("specidx".into()))
+                    .unwrap_or_else(|| panic!("`{variant_desc:?}` doesn't have `specidx`!!!!"))
+                    .as_str()
+                    .expect("specidx field is required to create identifier"),
+            );
+
+            // ...and its type
+            let ty: Datatype = iptc_type_to_rust_type(
+                from_yaml(variant_desc, "datatype"),
+                optional_from_yaml(variant_desc, "propoccurrence")
+                    .and_then(|value| match value {
+                        "single" => Some(false),
+                        "multi" => Some(true),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| panic!("should know propoccurrence for variant: {ident}")),
+                optional_from_yaml(variant_desc, "dataformat"),
+            );
+
             // here's the data collected on each variant. we'll use it to make
             // an info struct...
             let info = IptcEnumVariant {
                 // for generating the enum type
-                ident: kebab_case_to_pascal_case(
-                    raw_enums[variant_key]
-                        .as_hash()
-                        .expect("key can become hash")
-                        .get(&Yaml::String("specidx".into()))
-                        .unwrap_or_else(|| panic!("`{variant_desc:?}` doesn't have `specidx`!!!!"))
-                        .as_str()
-                        .expect("specidx field is required to create identifier"),
-                ),
-                ty: iptc_type_to_rust_type(
-                    from_yaml(variant_desc, "datatype"),
-                    optional_from_yaml(variant_desc, "dataformat"),
-                ),
+                ident,
+                ty,
 
                 // for creating enum methods
                 name: from_yaml(variant_desc, "name"),
@@ -668,7 +678,10 @@ mod ipmd_struct_creation {
 
     use yaml_rust2::Yaml;
 
-    use crate::{datatype::iptc_type_to_rust_type, string_case::camel_case_to_snake_case};
+    use crate::{
+        datatype::{Datatype, iptc_type_to_rust_type},
+        string_case::camel_case_to_snake_case,
+    };
 
     /// A single field inside a larger [`IptcStruct`].
     pub struct IptcStructField<'yaml> {
@@ -680,12 +693,7 @@ mod ipmd_struct_creation {
         /// The field's type, like `Option<u32>`.
         ///
         /// Ex: in `foo: Bar`, the `ty` is `Bar`.
-        pub ty: String,
-
-        /// Says whether the field can store multiple values.
-        ///
-        /// Ex: if `true`, make `foo: Vec<Bar>` instead of `foo: Bar`.
-        pub multi: bool,
+        pub ty: Datatype<'yaml>,
 
         /// This isn't really related to the creation of field itself, but each
         /// in the standard is also assigned an XMP identifier.
@@ -822,13 +830,12 @@ mod ipmd_struct_creation {
         let ident: String = camel_case_to_snake_case(camel_case_ident);
 
         // map the IPTC type into a Rust type
-        let ty: String = iptc_type_to_rust_type(datatype, dataformat);
+        let ty: Datatype = iptc_type_to_rust_type(datatype, multi, dataformat);
 
         // ...and construct the field!
         Some(IptcStructField {
             ident,
             ty,
-            multi,
             xmp_ident,
         })
     }
@@ -927,12 +934,59 @@ pub mod string_case {
 
 /// Related to parsing `datatype` into something usable.
 pub mod datatype {
+    use std::fmt::Write as _;
+
+    /// A Rust type stemming from an IPTC `datatype`, inclusive of vecs.
+    pub struct Datatype<'yaml> {
+        /// Whether this is a `Vec<T>` or just a `T`.
+        pub vec: bool,
+
+        /// The `T` mentioned above.
+        pub kind: DatatypeKind<'yaml>,
+    }
+
+    /// Rust representation of an IPTC `datatype`.
+    pub enum DatatypeKind<'yaml> {
+        /// A primitive string - no parsing needed!
+        String,
+
+        /// A primitive number - just use `i64`.
+        Number,
+
+        /// A type from the `ipmd_struct` list.
+        CrateType(&'yaml str),
+    }
+
+    impl core::fmt::Display for Datatype<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            if self.vec {
+                f.write_str("::alloc::vec::Vec<")?;
+            }
+
+            match self.kind {
+                DatatypeKind::String => f.write_str("::alloc::string::String")?,
+                DatatypeKind::Number => f.write_str("i64")?,
+                DatatypeKind::CrateType(iptc_struct_ident) => {
+                    f.write_str("crate::structs::")?;
+                    f.write_str(iptc_struct_ident)?;
+                }
+            }
+
+            if self.vec {
+                f.write_char('>')?;
+            }
+
+            Ok(())
+        }
+    }
+
     /// Converts an IPTC type into a Rust type.
     pub fn iptc_type_to_rust_type<'yaml>(
         iptc_type: &'yaml str,
+        multi: bool,
         dataformat: Option<&'yaml str>,
-    ) -> String {
-        const STRING: &str = "::alloc::string::String";
+    ) -> Datatype<'yaml> {
+        let mut kind: Option<DatatypeKind> = None;
 
         // there are some fields which refer to builtin types or other
         // generated types.
@@ -941,27 +995,33 @@ pub mod datatype {
         if iptc_type == "struct" {
             if let Some(referential_ty) = dataformat {
                 match referential_ty {
-                    "AltLang" => return STRING.into(),
-                    "uri" | "url" => return STRING.into(),
-                    "date-time" => return STRING.into(),
+                    "AltLang" => kind = Some(DatatypeKind::String),
+                    "uri" | "url" => kind = Some(DatatypeKind::String),
+                    "date-time" => kind = Some(DatatypeKind::String),
 
                     // other structs not listed here are defined in `ipmd_struct`
                     // itself!
                     //
                     // so, we'll use their Rust types directly
-                    other => return format!("crate::structs::{other}"),
+                    other => kind = Some(DatatypeKind::CrateType(other)),
                 }
             }
+        } else {
+            // handle normal types by mapping them to Rust primitives
+            match iptc_type {
+                "string" => kind = Some(DatatypeKind::String),
+                "number" => kind = Some(DatatypeKind::Number),
+
+                // we shouldn't build for other types. let's ensure it doesn't
+                // compile by panicking...
+                other => panic!("other type: {other}"),
+            };
         }
 
-        // now, handle normal types by mapping them to Rust primitivesd
-        match iptc_type {
-            "string" => STRING.into(),
-            "number" => "i64".into(),
-
-            // we shouldn't build for other types. let's ensure it doesn't
-            // compile by panicking...
-            other => panic!("other type: {other}"),
+        // finally, wrap all that up into a type
+        Datatype {
+            vec: multi,
+            kind: kind.expect("should have type"),
         }
     }
 }
