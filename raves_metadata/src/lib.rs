@@ -1,18 +1,16 @@
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
-
 use error::IptcError;
+use raves_iptc_types::IptcKeyValue;
 
 pub mod error;
 pub mod providers;
 pub mod util;
 
-pub type Pairs = HashMap<String, Vec<String>>;
 
 /// Parsed IPTC.
 pub struct Iptc {
-    pub pairs: Pairs,
+    pub pairs: Vec<IptcKeyValue>,
 }
 
 /// A media file with support for various metadata formats.
@@ -27,5 +25,3 @@ pub trait MetadataProvider {
 
     // fn xmp(&self) -> Result<Xmp, XmpError>;
 }
-
-pub enum IptcKey {}
