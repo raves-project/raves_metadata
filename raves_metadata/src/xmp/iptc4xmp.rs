@@ -5,7 +5,7 @@
 
 use crate::{Iptc, error::XmpError};
 
-use raves_iptc_types::{
+use raves_metadata_types::{
     IptcKey as K, IptcKeyValue as Kv,
     structs::{
         ArtworkOrObject, CopyrightOwner, CreatorContactInfo, CvTerm, EmbdEncRightsExpr, Entity,
@@ -1307,7 +1307,7 @@ impl ElementExt for Element {
 
 #[cfg(test)]
 mod tests {
-    use raves_iptc_types::IptcKeyValue;
+    use raves_metadata_types::IptcKeyValue;
     use xmltree::Element;
 
     use super::{ElementExt as _, parse_xmp_for_iptc};

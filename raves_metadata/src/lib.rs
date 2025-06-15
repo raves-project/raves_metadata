@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use error::IptcError;
-use raves_iptc_types::IptcKeyValue;
+use raves_metadata_types::IptcKeyValue;
 
 pub mod error;
 pub mod providers;

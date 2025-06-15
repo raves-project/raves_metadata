@@ -1,5 +1,5 @@
 [package]
-name = "raves_iptc_types"
+name = "raves_metadata_types"
 version = "0.1.0"
 edition = "2024"
 

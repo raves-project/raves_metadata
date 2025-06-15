@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 winnow = "0.7.11"
-raves_iptc_types = { path = "../raves_iptc_types" }
+raves_metadata_types = { path = "../raves_metadata_types" }
 tracing = { version = "0.1.41", default-features = false, features = ["std"] }
 
 # this is a soft fork of the `xmltree` crate.
