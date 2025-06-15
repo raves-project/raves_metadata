@@ -53,13 +53,13 @@ impl RustTypes<'_> {
 
 extern crate alloc;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum IptcKeyValue {{
 {}}}
 
 {}
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum IptcKey {{
 {}}}
 
@@ -309,7 +309,7 @@ pub mod structs {{
             .fold(String::new(), |mut acc, struct_entry| {
                 // each struct gets its own Rust type
                 acc.push_str(SPACING);
-                acc.push_str("#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]\n");
+                acc.push_str("#[derive(Clone, Debug, PartialEq, PartialOrd)]\n");
                 acc.push_str(SPACING);
                 acc.push_str("pub struct ");
                 acc.push_str(struct_entry.ident);
@@ -1006,8 +1006,15 @@ pub mod datatype {
         /// A primitive string - no parsing needed!
         String,
 
-        /// A primitive number - just use `i64`.
-        Number,
+        /// A primitive number specified to be an integer.
+        ///
+        /// We'll use `i64` to ensure we've got enough bits.
+        Integer,
+
+        /// A primitive number not specified to be an integer.
+        ///
+        /// These are usually floats, so we'll assume as such.
+        MaybeFloat,
 
         /// A type from the `ipmd_struct` list.
         CrateType(&'yaml str),
@@ -1025,7 +1032,8 @@ pub mod datatype {
 
             match self.kind {
                 DatatypeKind::String => f.write_str("::alloc::string::String")?,
-                DatatypeKind::Number => f.write_str("i64")?,
+                DatatypeKind::Integer => f.write_str("i64")?,
+                DatatypeKind::MaybeFloat => f.write_str("f64")?,
                 DatatypeKind::CrateType(iptc_struct_ident) => {
                     f.write_str("crate::structs::")?;
                     f.write_str(iptc_struct_ident)?;
@@ -1049,7 +1057,7 @@ pub mod datatype {
         pub fn is_primitive(&self) -> bool {
             !self.vec
                 && match self.kind {
-                    DatatypeKind::Number | DatatypeKind::String => true,
+                    DatatypeKind::Integer | DatatypeKind::MaybeFloat | DatatypeKind::String => true,
                     DatatypeKind::CrateType(..) => false,
                 }
         }
@@ -1063,7 +1071,7 @@ pub mod datatype {
         pub fn is_struct(&self) -> bool {
             match self.kind {
                 DatatypeKind::CrateType(..) => true,
-                DatatypeKind::Number | DatatypeKind::String => false,
+                DatatypeKind::Integer | DatatypeKind::MaybeFloat | DatatypeKind::String => false,
             }
         }
     }
@@ -1099,7 +1107,13 @@ pub mod datatype {
             // handle normal types by mapping them to Rust primitives
             match iptc_type {
                 "string" => kind = Some(DatatypeKind::String),
-                "number" => kind = Some(DatatypeKind::Number),
+                "number" => {
+                    kind = Some(if dataformat == Some("integer") {
+                        DatatypeKind::Integer
+                    } else {
+                        DatatypeKind::MaybeFloat
+                    })
+                }
 
                 // we shouldn't build for other types. let's ensure it doesn't
                 // compile by panicking...
