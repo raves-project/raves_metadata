@@ -7,6 +7,7 @@ pub mod error;
 pub mod providers;
 pub mod util;
 
+mod xmp;
 
 /// Parsed IPTC.
 pub struct Iptc {

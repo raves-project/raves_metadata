@@ -5,4 +5,26 @@ edition = "2024"
 
 [dependencies]
 winnow = "0.7.11"
-quick-xml = "0.37.5"
+raves_iptc_types = { path = "../raves_iptc_types" }
+tracing = { version = "0.1.41", default-features = false, features = ["std"] }
+
+# this is a soft fork of the `xmltree` crate.
+#
+# it provides a fix for the element attributes parsing, where, in the original
+# crate, the attributes lose their namespace when parsed.
+#
+# this is a temporary solution until the original crate has fixes merged.
+#
+# for more info, see:
+# https://github.com/eminence/xmltree-rs/issues/13
+#
+# also, the branch listed below is available here:
+# https://github.com/Heinenen/xmltree-rs/tree/ns-attributes
+[dependencies.xmltree]
+version = "0.11.0"
+git = "https://github.com/Heinenen/xmltree-rs"
+rev = "ae40c1d32bbe18892c5e3fdc7f483ac2f6524028" # on branch `ns-attributes`:
+
+
+[dev-dependencies]
+tracing-subscriber = "0.3.19"
