@@ -617,6 +617,7 @@ mod ipmd_top_enum_creation {
                         _ => None,
                     })
                     .unwrap_or_else(|| panic!("should know propoccurrence for variant: {ident}")),
+                true,
                 optional_from_yaml(variant_desc, "dataformat"),
             );
 
@@ -822,12 +823,14 @@ mod ipmd_struct_creation {
         // 1. `datatype`: maps to `Ty` in `iden: Ty`
         // 2. `dataformat`: says to use another struct as the field's type
         // 3. `propoccurrence`: whether to use `Vec<Ty>` instead
-        // 4. `XMPid`: the unique XMP identifier for this field
+        // 4. `isrequired`:  whether to use `Option<T>` instead
+        // 5. `XMPid`: the unique XMP identifier for this field
         //
         // then, we can generate a field for it!
         let mut maybe_datatype: Option<&str> = None;
         let mut dataformat: Option<&str> = None; // this is optional - we don't unwrap it
         let mut maybe_prop_occurrence_multi: Option<bool> = None;
+        let mut maybe_required: Option<bool> = None;
         let mut maybe_xmp_ident: Option<&str> = None;
         for (raw_prop_key, raw_prop_value) in desc {
             let prop_key: &str = raw_prop_key.as_str()?;
@@ -850,6 +853,16 @@ mod ipmd_struct_creation {
                     _ => (),
                 },
 
+                // this specifies whether we should use `Option<T>` or `T`.
+                //
+                // note that, as of writing, the standard requests `false` for
+                // all provided types lol
+                "isrequired" => match prop_value {
+                    "0" => maybe_required = Some(false),
+                    "1" => maybe_required = Some(true),
+                    _ => (),
+                },
+
                 // we can use this directly
                 "XMPid" => maybe_xmp_ident = Some(prop_value),
 
@@ -859,9 +872,10 @@ mod ipmd_struct_creation {
         }
 
         // great - now we need to unwrap all those...
-        let (datatype, multi, xmp_ident) = (
+        let (datatype, multi, required, xmp_ident) = (
             maybe_datatype.expect("get property dataty"),
             maybe_prop_occurrence_multi.expect("get property occurance"),
+            maybe_required.expect("get property: `isrequired`"),
             maybe_xmp_ident.expect("get xmp ident"),
         );
 
@@ -869,7 +883,7 @@ mod ipmd_struct_creation {
         let ident: String = camel_case_to_snake_case(camel_case_ident);
 
         // map the IPTC type into a Rust type
-        let ty: Datatype = iptc_type_to_rust_type(datatype, multi, dataformat);
+        let ty: Datatype = iptc_type_to_rust_type(datatype, multi, required, dataformat);
 
         // ...and construct the field!
         Some(IptcStructField {
@@ -980,6 +994,9 @@ pub mod datatype {
         /// Whether this is a `Vec<T>` or just a `T`.
         pub vec: bool,
 
+        /// Whether `T` is required - if false, this is `Option<T>`
+        pub required: bool,
+
         /// The `T` mentioned above.
         pub kind: DatatypeKind<'yaml>,
     }
@@ -998,6 +1015,10 @@ pub mod datatype {
 
     impl core::fmt::Display for Datatype<'_> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            if !self.required {
+                f.write_str("::core::option::Option<")?;
+            }
+
             if self.vec {
                 f.write_str("::alloc::vec::Vec<")?;
             }
@@ -1012,6 +1033,10 @@ pub mod datatype {
             }
 
             if self.vec {
+                f.write_char('>')?;
+            }
+
+            if !self.required {
                 f.write_char('>')?;
             }
 
@@ -1047,6 +1072,7 @@ pub mod datatype {
     pub fn iptc_type_to_rust_type<'yaml>(
         iptc_type: &'yaml str,
         multi: bool,
+        required: bool,
         dataformat: Option<&'yaml str>,
     ) -> Datatype<'yaml> {
         let mut kind: Option<DatatypeKind> = None;
@@ -1084,6 +1110,7 @@ pub mod datatype {
         // finally, wrap all that up into a type
         Datatype {
             vec: multi,
+            required,
             kind: kind.expect("should have type"),
         }
     }
