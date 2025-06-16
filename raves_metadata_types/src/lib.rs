@@ -6,6 +6,9 @@ extern crate alloc;
 pub mod iptc {
     include!(concat!(env!("OUT_DIR"), "/iptc_keys.rs"));
 }
+
+pub mod xmp_parse_table;
+
 /// This is the "data" side of things.
 ///
 /// When parsing data out of XMP, these types, alongside the original document,
