@@ -49,12 +49,12 @@ pub fn parse_xmp_for_iptc(raw_xmp: &str) -> Result<Iptc, XmpError> {
     } else {
         &document
     };
-    tracing::debug!("found parent element: {}", parent.prefixed_name());
+    log::debug!("found parent element: {}", parent.prefixed_name());
 
     let Some(rdf) = parent.prefixed_child("rdf:RDF") else {
         todo!("make this into an error: \"required rdf:RDF element wasn't found in XMP\"");
     };
-    tracing::debug!("found `rdf:RDF`: {}", parent.prefixed_name());
+    log::debug!("found `rdf:RDF`: {}", parent.prefixed_name());
 
     // there can be multiple RDF descriptions, so we'll grab all of them that
     // are inner nodes!
@@ -64,7 +64,7 @@ pub fn parse_xmp_for_iptc(raw_xmp: &str) -> Result<Iptc, XmpError> {
         .flat_map(|inner| inner.as_element())
         .filter(|elem| elem.prefixed_name() == "rdf:Description");
 
-    tracing::debug!(
+    log::debug!(
         "found {} `rdf:Description` tags.",
         rdf_descriptions.clone().count()
     );
@@ -74,7 +74,7 @@ pub fn parse_xmp_for_iptc(raw_xmp: &str) -> Result<Iptc, XmpError> {
     for rdf_description in rdf_descriptions {
         // first, parse its attributes for builtin IPTC primitives
         for (attr_key, attr_value) in &rdf_description.attributes {
-            tracing::debug!(
+            log::debug!(
                 "parsing attribute: `{}:{}` = `{attr_value}` in RDF description",
                 attr_key.prefix_ref().unwrap_or(""),
                 attr_key.local_name
@@ -82,14 +82,14 @@ pub fn parse_xmp_for_iptc(raw_xmp: &str) -> Result<Iptc, XmpError> {
 
             // it must have a prefix; otherwise, we'll skip it
             let Some(attr_prefix) = attr_key.prefix_ref() else {
-                tracing::debug!("skipping attribute `{attr_key}`, as it has no prefix");
+                log::debug!("skipping attribute `{attr_key}`, as it has no prefix");
                 continue;
             };
 
             // grab the attribute's associated key type
             let prefixed_key: String = format!("{}:{}", attr_prefix, attr_key.local_name);
             let Some(iptc_ty) = K::from_xmp_id(&prefixed_key) else {
-                tracing::debug!("skipping attribute `{prefixed_key}`, as it isn't an IPTC key");
+                log::debug!("skipping attribute `{prefixed_key}`, as it isn't an IPTC key");
                 continue;
             };
 
@@ -1098,7 +1098,7 @@ impl ElementExt for Element {
     fn prefixed_child(&self, prefixed_name: &str) -> Option<&Element> {
         // split the prefix and name
         let (prefix, name) = prefixed_name.split_once(':').or_else(|| {
-            tracing::warn!("failed to split prefixed name: `{prefixed_name}`");
+            log::warn!("failed to split prefixed name: `{prefixed_name}`");
 
             #[cfg(debug_assertions)]
             panic!("given sub-element is not prefixed: `{prefixed_name}`");
@@ -1307,7 +1307,7 @@ impl ElementExt for Element {
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::IptcKeyValue;
+    use raves_metadata_types::iptc::IptcKeyValue;
     use xmltree::Element;
 
     use super::{ElementExt as _, parse_xmp_for_iptc};
@@ -1316,8 +1316,8 @@ mod tests {
     /// methods.
     #[test]
     fn get_list_and_prefixed_child() {
-        _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
             .try_init();
 
         // parse out the document
@@ -1347,8 +1347,8 @@ mod tests {
     /// Checks that we can grab a prefixed attribute.
     #[test]
     fn check_prefixed_attr() {
-        _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
             .try_init();
 
         let element = Element::parse(r#"<dc:title xmlns:x="adobe:ns:meta/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:family="https://www.fox.com/family-guy/" family:guy="true"/>"#.as_bytes())
@@ -1365,8 +1365,8 @@ mod tests {
     /// internals.
     #[test]
     fn simple_xmp_iptc_embed() {
-        _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
             .try_init();
 
         let simple_xmp: &str = r#"<?xpacket begin="﻿" id="some_id"?>

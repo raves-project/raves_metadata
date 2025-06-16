@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 winnow = "0.7.11"
 raves_metadata_types = { path = "../raves_metadata_types" }
-tracing = { version = "0.1.41", default-features = false, features = ["std"] }
+log = "0.4.27"
 
 # this is a soft fork of the `xmltree` crate.
 #
@@ -27,4 +27,4 @@ rev = "ae40c1d32bbe18892c5e3fdc7f483ac2f6524028" # on branch `ns-attributes`:
 
 
 [dev-dependencies]
-tracing-subscriber = "0.3.19"
+env_logger = { version = "0.11.8", default-features = false }
