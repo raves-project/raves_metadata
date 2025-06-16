@@ -5,7 +5,7 @@
 
 use crate::{Iptc, error::XmpError};
 
-use raves_metadata_types::{
+use raves_metadata_types::iptc::{
     IptcKey as K, IptcKeyValue as Kv,
     structs::{
         ArtworkOrObject, CopyrightOwner, CreatorContactInfo, CvTerm, EmbdEncRightsExpr, Entity,
