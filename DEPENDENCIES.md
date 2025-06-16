@@ -61,3 +61,8 @@ To parse the IPTC tech reference YAML file, we use `yaml-rust2`. This might be r
   - `hashbrown` is another implementation of `std::collections::HashMap`, though it works `#[no_std]`.
     - `foldhash` is `hashbrown`'s default hasher.
 
+### Runtime Dependencies
+
+#### `rustc-hash`
+
+This tiny crate lets us use a non-cryptographic hasher in our XMP lookup table - which makes the lookup faster. It has no dependencies.

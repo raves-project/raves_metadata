@@ -3,5 +3,8 @@ name = "raves_metadata_types"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+rustc-hash = { version = "2.1.1" }
+
 [build-dependencies]
-yaml-rust2 = "0.10.3"
+yaml-rust2 = { version = "0.10.3", default-features = true }
