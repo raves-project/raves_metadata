@@ -193,6 +193,26 @@ pub mod xmp_parsing_types {
         },
     }
 
+    impl XmpKindStructFieldIdent {
+        pub fn ns(&'static self) -> Option<&'static str> {
+            match self {
+                XmpKindStructFieldIdent::ParentNs(_) => None,
+                XmpKindStructFieldIdent::NoNs(_) => None,
+                XmpKindStructFieldIdent::Namespaced { namespace, .. } => Some(namespace),
+            }
+        }
+
+        pub fn name(&'static self) -> &'static str {
+            match self {
+                XmpKindStructFieldIdent::ParentNs(name)
+                | XmpKindStructFieldIdent::NoNs(name)
+                | XmpKindStructFieldIdent::Namespaced {
+                    field_name: name, ..
+                } => name,
+            }
+        }
+    }
+
     /// On `XmpKind::Struct`, you can have multiple variants.
     ///
     /// This struct represents one such variant.
