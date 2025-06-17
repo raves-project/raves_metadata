@@ -1,7 +1,15 @@
 [package]
 name = "raves_metadata_types"
+description = "Types for parsing media metadata in `raves_metadata`"
 version = "0.1.0"
-edition = "2024"
+
+# derive some props from the workspace
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 rustc-hash = { version = "2.1.1" }

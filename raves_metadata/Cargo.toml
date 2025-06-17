@@ -1,8 +1,16 @@
 [package]
 name = "raves_metadata"
+description = "A library to parse metadata from media files"
 version = "0.1.0"
-edition = "2024"
 readme = "../README.md"
+
+# derive some props from the workspace
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 winnow = "0.7.11"
