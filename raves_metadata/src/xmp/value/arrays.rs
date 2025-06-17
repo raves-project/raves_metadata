@@ -1,0 +1,264 @@
+use std::borrow::Cow;
+
+use raves_metadata_types::{
+    xmp::XmpValue,
+    xmp_parsing_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
+};
+use xmltree::{Element, XMLNode};
+
+use crate::xmp::{
+    RDF_NAMESPACE,
+    error::{XmpElementResult, XmpParsingError},
+    value::{XmpElementExt, prims::parse_primitive},
+};
+
+/// Parses an element's value as a list of alternatives.
+///
+/// These are generally represented by `rdf:Alt`, with each inner `rdf:li`
+/// storing one possible display value.
+///
+/// Alternative collections usually look like the following:
+///
+/// ```xml
+/// <ns:element>
+///     <rdf:Alt>
+///         <rdf:li xml:lang="x-default">XMP - Extensible Metadata Platform</rdf:li>
+///         <rdf:li xml:lang="en-us">XMP - Extensible Metadata Platform</rdf:li>
+///         <rdf:li xml:lang="fr-fr">XMP - Une Platforme Extensible pour les Métadonnées</rdf:li>
+///         <rdf:li xml:lang="it-it">XMP - Piattaforma Estendibile di Metadata</rdf:li>
+///     </rdf:Alt>
+/// </ns:element>
+/// ```
+///
+/// We should pick a matching `xml:lang` to what a user asks for, or,
+/// otherwise, grab the `x-default` option.
+pub fn value_alternatives<'xml>(
+    element: &'xml Element,
+    _maybe_ty: Option<&'static Kind>, // TODO: use for better parsing
+) -> XmpElementResult<'xml> {
+    // try to find an `rdf:Alt`
+    let alt: &Element = element
+        .children
+        .iter()
+        .flat_map(|cn: &XMLNode| cn.as_element())
+        .flat_map(|c: &Element| Some((c, c.namespace.clone()?)))
+        .find(|(e, ns)| ns.as_str() == RDF_NAMESPACE && e.name.as_str() == "Alt")
+        .map(|(e, _)| e)
+        .ok_or(XmpParsingError::ArrayNoInnerCollectionType {
+            element_name: Cow::from(&element.name),
+            children: Cow::from(&element.children),
+        })?;
+
+    // each `rdf:li` sub-element will become a tuple: (parsed_inner, case),
+    // where:
+    //
+    // - `parsed_inner` represents the actual parsed data, and
+    // - `case` says which case we are (e.g. `x-default`)
+    // grab a list of `rdf:li`
+    let lis = alt
+        .children
+        .iter()
+        .flat_map(|cn: &XMLNode| cn.as_element())
+        .filter(|maybe_li| {
+            // ensure we've got a namespace
+            let Some(ref ns) = maybe_li.namespace else {
+                log::warn!(
+                    "sub-element of `rdf:Alt` was expected to be `rdf:li`, \
+                        but had no namespace. element name: `{}`",
+                    &maybe_li.name
+                );
+                return false;
+            };
+
+            // actually check namespace
+            ns.as_str() == RDF_NAMESPACE && maybe_li.name.as_str() == "li"
+        });
+
+    // parse each `rdf:li` into a (tag, `XmpValue`) pair
+    let parsed_lis: Vec<_> = lis
+        .flat_map(|li| {
+            // we need to know which case we're workin with.
+            //
+            // each li should have a case tag
+            let maybe_tag_primitive = li
+                .attributes
+                .iter()
+                .find(|(keys, _)| {
+                    // check prefix (TODO: does `xml` have a namespace URI?)
+                    if keys
+                        .prefix
+                        .as_ref()
+                        .filter(|pre| pre.as_str() == "xml")
+                        .is_none()
+                    {
+                        log::trace!(
+                            "`rdf:li` attr isn't a case tag - missing `xml` namespace prefix. \
+                        got: `{prefix:?}`, \
+                        expected: `Some(\"xml\")`",
+                            prefix = keys.prefix
+                        );
+                        return false;
+                    }
+
+                    // check element
+                    if keys.local_name.as_str() != "lang" {
+                        log::trace!(
+                            "`rdf:li` attr isn't a case tag - missing `xml` namespace prefix. \
+                        got: `{prefix:?}`, \
+                        expected: `Some(\"xml\")`",
+                            prefix = keys.prefix
+                        );
+                        return false;
+                    }
+
+                    true
+                })
+                .map(|(_, value)| value);
+
+            if let Some(tag_primitive) = maybe_tag_primitive {
+                return Some((
+                    tag_primitive,
+                    li.to_xmp_element(
+                        parse_primitive(li.get_text()?, &Prim::Text)
+                            .inspect_err(|e| log::error!("Couldn't parse primitive! err: {e}"))
+                            .ok()?,
+                    )
+                    .inspect_err(|e| log::error!("Failed to create `XmpElement`. err: {e}"))
+                    .ok()?,
+                ));
+            }
+
+            None
+        })
+        .collect();
+
+    // find the default one based on the marker
+    let Some((_, chosen_value)) = parsed_lis
+        .iter()
+        .find(|(tag, _)| tag.as_str() == "x-default")
+        .cloned()
+    else {
+        log::error!("Can't create list of alternatives - no default was found.");
+        log::error!("The options found were: {parsed_lis:#?}");
+        return Err(XmpParsingError::ArrayAltNoDefault {
+            element_name: Cow::from(&element.name),
+            alternatives_array: Cow::from_iter(
+                parsed_lis
+                    .iter()
+                    .map(|(_, parsed_li_elem)| parsed_li_elem.clone()),
+            ),
+        });
+    };
+
+    // wrap it all up
+    let value = XmpValue::Alternatives {
+        chosen: Box::new(chosen_value),
+        list: parsed_lis.into_iter().map(|(_, value)| value).collect(),
+    };
+
+    element.to_xmp_element(value)
+}
+
+/// Parses an element's value as an unordered array of XMP values.
+///
+/// An unordered array will look like the following:
+///
+/// ```xml
+/// <ns:element>
+///      <rdf:Bag>
+///          <rdf:li>oswald</rdf:li>
+///          <rdf:li>miranda</rdf:li>
+///          <rdf:li>natalie</rdf:li>
+///          <rdf:li>izzy</rdf:li>
+///          <rdf:li> ... </rdf:li>
+///      </rdf:Bag>
+/// </ns:element>
+/// ```
+pub fn value_unordered_array<'xml>(
+    element: &'xml Element,
+    maybe_ty: Option<&'static Kind>,
+) -> XmpElementResult<'xml> {
+    value_array(element, maybe_ty, false)
+}
+
+/// Parses an element's value as an ordered array of XMP values.
+///
+/// An ordered array will look like the following:
+///
+/// ```xml
+/// <ns:element>
+///      <rdf:Seq>
+///          <rdf:li>value1</rdf:li>
+///          <rdf:li>value2</rdf:li>
+///          <rdf:li>value3</rdf:li>
+///          <rdf:li> ... </rdf:li>
+///      </rdf:Seq>
+/// </ns:element>
+/// ```
+pub fn value_ordered_array<'xml>(
+    element: &'xml Element,
+    maybe_ty: Option<&'static Kind>,
+) -> XmpElementResult<'xml> {
+    value_array(element, maybe_ty, true)
+}
+
+/// Parses an element's value as an array.
+///
+/// `ordered` is `true` if `Kind::OrderedArray`, `false` if
+/// `Kind::UnorderedArray`.
+fn value_array<'xml>(
+    element: &'xml Element,
+    maybe_ty: Option<&'static Kind>,
+    ordered: bool,
+) -> XmpElementResult<'xml> {
+    let (collection_target, collection_ctor): (&'static str, fn(_) -> _) = match ordered {
+        true => ("seq", XmpValue::OrderedArray),
+        false => ("bag", XmpValue::UnorderedArray),
+    };
+
+    // parse out the `rdf:Bag`/`rdf:Seq`
+    let collection_elem: &Element = element
+        .children
+        .iter()
+        .flat_map(|cn: &XMLNode| cn.as_element())
+        .flat_map(|c: &Element| Some((c, c.namespace.clone()?)))
+        .find(|(e, ns)| ns.as_str() == RDF_NAMESPACE && e.name.as_str() == collection_target)
+        .map(|(e, _)| e)
+        .ok_or(XmpParsingError::ArrayNoInnerCollectionType {
+            element_name: Cow::from(&element.name),
+            children: Cow::from_iter(element.children.clone().into_iter()),
+        })
+        .inspect_err(|e| log::error!("Couldn't find collection container! err: {e}"))?;
+
+    // grab a list of `rdf:li`
+    let lis = collection_elem
+        .children
+        .iter()
+        .flat_map(|cn: &XMLNode| cn.as_element())
+        .filter(|maybe_li| {
+            // ensure we've got a namespace
+            let Some(ref ns) = maybe_li.namespace else {
+                log::warn!(
+                    "sub-element of `rdf:{collection_target}` was \
+                        expected to be `rdf:li`, but had no namespace. \
+                        element name: `{}`",
+                    &maybe_li.name
+                );
+                return false;
+            };
+
+            // actually check namespace
+            ns.as_str() == RDF_NAMESPACE && maybe_li.name.as_str() == "li"
+        });
+
+    // parse each `rdf:li` into an `XmpElement`
+    let parsed_lis: Vec<_> = lis
+        .flat_map(|li| match maybe_ty {
+            Some(ty) => li.value_with_schema(ty),
+            None => li.value_generic(),
+        })
+        .collect();
+
+    // return it as the appropriate array
+    element.to_xmp_element(collection_ctor(parsed_lis))
+}

@@ -43,11 +43,7 @@ use raves_metadata_types::iptc::IptcKeyValue;
 
 pub mod error;
 pub mod providers;
-
-mod xmp;
-
-// re-export the XMP module's types
-pub use xmp::{Xmp, XmpDocument};
+pub mod xmp;
 
 /// Parsed IPTC.
 pub struct Iptc {
