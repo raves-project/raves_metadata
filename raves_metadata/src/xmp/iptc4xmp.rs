@@ -2,6 +2,9 @@
 //!
 //! In this case, we need a parser to do some bare minimum XMP parsing: we
 //! simply disregard anything that isn't the IPTC information.
+//!
+//! This file implements the IPTC Photo Standard (version 2024.1, core and
+//! extensions) through IPTC4XMP.
 
 use crate::{Iptc, error::XmpError};
 
