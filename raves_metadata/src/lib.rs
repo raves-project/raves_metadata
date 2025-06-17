@@ -43,7 +43,6 @@ use raves_metadata_types::iptc::IptcKeyValue;
 
 pub mod error;
 pub mod providers;
-pub mod util;
 
 mod xmp;
 
