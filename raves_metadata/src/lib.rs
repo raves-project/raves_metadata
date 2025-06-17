@@ -46,6 +46,9 @@ pub mod providers;
 
 mod xmp;
 
+// re-export the XMP module's types
+pub use xmp::{Xmp, XmpDocument};
+
 /// Parsed IPTC.
 pub struct Iptc {
     pub pairs: Vec<IptcKeyValue>,
