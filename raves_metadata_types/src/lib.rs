@@ -22,6 +22,25 @@ pub mod xmp {
         Simple(XmpPrimitive<'xml>),
         Struct(Vec<XmpValueStructField<'xml>>),
 
+        /// A union is similar to a struct, but its tag determines which fields
+        /// are stored at the moment.
+        Union {
+            /// A field that acts as the discriminant (tag) on this union.
+            ///
+            /// It says which fields are available.
+            ///
+            /// Note that the discriminant, unlike the internal parser types,
+            /// is NOT included in the `always` field - it's only here.
+            discriminant: Box<XmpValueStructField<'xml>>,
+
+            /// Fields for this discriminant.
+            expected_fields: Vec<XmpValueStructField<'xml>>,
+
+            /// Fields that were not expected for this discriminant, but were
+            /// present nonetheless.
+            unexpected_fields: Vec<XmpValueStructField<'xml>>,
+        },
+
         // different array types
         UnorderedArray(Vec<XmpValue<'xml>>),
         OrderedArray(Vec<XmpValue<'xml>>),
