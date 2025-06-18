@@ -95,7 +95,7 @@ pub mod xmp {
 /// all zero-sized types (ZSTs)!
 pub mod xmp_parsing_types {
     /// A specific "kind" of type that a property may be.
-    #[derive(Debug, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd)]
     pub enum XmpKind {
         /// Contains a primitive type - nothing more.
         ///
@@ -178,7 +178,7 @@ pub mod xmp_parsing_types {
     /// Ex: `ResourceRef` specifies that its namespace must be
     /// `http://ns.adobe.com/xap/1.0/sType/ResourceRef#`, while `FrameCount`
     /// makes no suggestion at all.
-    #[derive(Debug, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd)]
     pub enum XmpKindStructFieldIdent {
         /// The field uses its parent's namespace.
         ParentNs(&'static str),
@@ -216,7 +216,7 @@ pub mod xmp_parsing_types {
     /// On `XmpKind::Struct`, you can have multiple variants.
     ///
     /// This struct represents one such variant.
-    #[derive(Debug, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd)]
     pub struct XmpKindStructField {
         pub ident: XmpKindStructFieldIdent,
         pub ty: &'static XmpKind,
@@ -225,7 +225,7 @@ pub mod xmp_parsing_types {
     /// The XMP standard comes with a modest number of primitives.
     ///
     /// This is a full list of them.
-    #[derive(Debug, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd)]
     pub enum XmpPrimitiveKind {
         Boolean,
         Date,
