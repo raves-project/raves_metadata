@@ -64,12 +64,34 @@ pub mod xmp {
 
     /// One field of an XMP struct.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
-    pub struct XmpValueStructField<'xml> {
-        /// The field's name.
-        pub ident: Cow<'xml, str>,
+    pub enum XmpValueStructField<'xml> {
+        /// Used when a field has additional inner elements (multiple fields)
+        /// as opposed to one primitive value.
+        ///
+        /// In other words, the contained value isn't a primitive.
+        Element {
+            /// The field's name.
+            ident: Cow<'xml, str>,
 
-        /// The field's value.
-        pub value: XmpValue<'xml>,
+            /// The field's namespace.
+            namespace: Option<Cow<'xml, str>>,
+
+            /// The field's idents + value.
+            element: XmpElement<'xml>,
+        },
+
+        /// Used when a contained value isn't recursive - it's just a
+        /// primitive.
+        Value {
+            /// The field's name.
+            ident: Cow<'xml, str>,
+
+            /// The field's namespace.
+            namespace: Option<Cow<'xml, str>>,
+
+            /// The field's value.
+            value: XmpValue<'xml>,
+        },
     }
 
     /// XMP structures can use these primitive types.
