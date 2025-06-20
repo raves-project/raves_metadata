@@ -39,16 +39,13 @@
 #![forbid(unsafe_code)]
 
 use error::IptcError;
-use raves_metadata_types::iptc::IptcKeyValue;
+
+use crate::iptc::Iptc;
 
 pub mod error;
+pub mod iptc;
 pub mod providers;
 pub mod xmp;
-
-/// Parsed IPTC.
-pub struct Iptc {
-    pub pairs: Vec<IptcKeyValue>,
-}
 
 /// A media file with support for various metadata formats.
 ///
