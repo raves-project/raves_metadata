@@ -6,7 +6,8 @@
 //! This file implements the IPTC Photo Standard (version 2024.1, core and
 //! extensions) through IPTC4XMP.
 
-use crate::{Iptc, error::XmpError};
+use super::error::Iptc4XmpError;
+use crate::Iptc;
 
 use raves_metadata_types::iptc::{
     IptcKey as K, IptcKeyValue as Kv,
@@ -18,9 +19,9 @@ use raves_metadata_types::iptc::{
 };
 use xmltree::Element;
 
-pub fn parse_xmp_for_iptc(raw_xmp: &str) -> Result<Iptc, XmpError> {
+pub fn parse_xmp_for_iptc(raw_xmp: &[u8]) -> Result<Iptc, Iptc4XmpError> {
     // shove the XMP data into an XML parser...
-    let document = match Element::parse(raw_xmp.as_bytes()) {
+    let document = match Element::parse(raw_xmp) {
         Ok(elem) => elem,
         Err(e) => todo!("map into XmpError after we get good err types. err: {e}"),
     };
@@ -1313,6 +1314,8 @@ mod tests {
     use raves_metadata_types::iptc::IptcKeyValue;
     use xmltree::Element;
 
+    use crate::iptc::Iptc;
+
     use super::{ElementExt as _, parse_xmp_for_iptc};
 
     /// Tests the `ElementExt::get_list` and `ElementExt::prefixed_child`
@@ -1378,7 +1381,11 @@ mod tests {
         <rdf:Description Iptc4xmpCore:CountryCode="US" />
     </rdf:RDF>
 </x:xmpmeta>"#;
-        let parsed = parse_xmp_for_iptc(simple_xmp).expect("parsing should succeed");
+        let parsed = parse_xmp_for_iptc(simple_xmp.as_bytes()).expect("parsing should succeed");
+        let parsed_from_public_api =
+            Iptc::new_xmp(simple_xmp).expect("second parsing should succeed");
+
+        assert_eq!(parsed, parsed_from_public_api);
 
         assert_eq!(
             parsed.pairs,

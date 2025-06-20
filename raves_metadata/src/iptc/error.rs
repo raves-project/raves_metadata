@@ -1,8 +1,14 @@
 use std::sync::Arc;
 
-/// This is an error that happened while we were parsing XMP.
+/// An error that occurred while parsing IPTC.
+#[derive(Debug)]
+pub enum IptcError {
+    Iptc4Xmp(Iptc4XmpError),
+}
+
+/// This is an error that happened while we were parsing IPTC through XMP.
 #[derive(Clone, Debug)]
-pub enum XmpError {
+pub enum Iptc4XmpError {
     /// `xmltree` failed to parse the XML.
     XmlParseError(
         // note: `Arc` allows us to impl `Clone`
@@ -17,18 +23,18 @@ pub enum XmpError {
     NoDescriptionElements,
 }
 
-impl core::fmt::Display for XmpError {
+impl core::fmt::Display for Iptc4XmpError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            XmpError::XmlParseError(e) => {
+            Iptc4XmpError::XmlParseError(e) => {
                 write!(f, "Encountered error while parsing XML. err: {}", e)
             }
 
-            XmpError::NoRdfElement => {
+            Iptc4XmpError::NoRdfElement => {
                 f.write_str("The XML is missing the `rdf:Rdf` element, which is required.")
             }
 
-            XmpError::NoDescriptionElements => f.write_str(
+            Iptc4XmpError::NoDescriptionElements => f.write_str(
                 "The `rdf:Rdf` element has no `rdf:Description` elements. \
                     One or more are required.",
             ),
@@ -36,17 +42,17 @@ impl core::fmt::Display for XmpError {
     }
 }
 
-impl core::error::Error for XmpError {
+impl core::error::Error for Iptc4XmpError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            XmpError::XmlParseError(e) => Some(e.as_ref()),
-            XmpError::NoRdfElement | XmpError::NoDescriptionElements => None,
+            Iptc4XmpError::XmlParseError(e) => Some(e.as_ref()),
+            Iptc4XmpError::NoRdfElement | Iptc4XmpError::NoDescriptionElements => None,
         }
     }
 }
 
-impl From<xmltree::ParseError> for XmpError {
+impl From<xmltree::ParseError> for Iptc4XmpError {
     fn from(value: xmltree::ParseError) -> Self {
-        XmpError::XmlParseError(value.into())
+        Iptc4XmpError::XmlParseError(value.into())
     }
 }

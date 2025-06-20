@@ -38,9 +38,7 @@
 
 #![forbid(unsafe_code)]
 
-use error::IptcError;
-
-use crate::iptc::Iptc;
+use iptc::{Iptc, error::IptcError};
 
 pub mod error;
 pub mod iptc;
