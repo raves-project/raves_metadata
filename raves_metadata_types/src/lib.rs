@@ -94,6 +94,24 @@ pub mod xmp {
         },
     }
 
+    impl<'xml> XmpValueStructField<'xml> {
+        /// Grabs a struct field's identifier.
+        pub fn ident(&self) -> Cow<'xml, str> {
+            match self {
+                XmpValueStructField::Element { ident, .. }
+                | XmpValueStructField::Value { ident, .. } => Cow::clone(ident),
+            }
+        }
+
+        /// Grabs a struct field's namespace.
+        pub fn namespace(&self) -> Option<Cow<'xml, str>> {
+            match self {
+                XmpValueStructField::Element { namespace, .. }
+                | XmpValueStructField::Value { namespace, .. } => namespace.clone(),
+            }
+        }
+    }
+
     /// XMP structures can use these primitive types.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
     pub enum XmpPrimitive<'xml> {
