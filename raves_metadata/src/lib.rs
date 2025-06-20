@@ -40,7 +40,6 @@
 
 use iptc::{Iptc, error::IptcError};
 
-pub mod error;
 pub mod iptc;
 pub mod providers;
 pub mod xmp;

@@ -23,12 +23,12 @@ use raves_metadata_types::{
 };
 use xmltree::{AttributeName, Element};
 
-use crate::{
+use crate::xmp::{
     error::XmpError,
-    xmp::value::{XmpElementExt as _, prims::parse_primitive},
+    value::{XmpElementExt as _, prims::parse_primitive},
 };
 
-mod error;
+pub mod error;
 mod heuristics;
 mod value;
 
