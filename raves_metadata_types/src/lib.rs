@@ -16,6 +16,18 @@ pub mod xmp_parse_table;
 pub mod xmp {
     use ::alloc::{borrow::Cow, boxed::Box, vec::Vec};
 
+    /// An element parsed from the XMP.
+    ///
+    /// Contains identifiers and a value.
+    #[derive(Clone, Debug, PartialEq, PartialOrd)]
+    pub struct XmpElement<'xml> {
+        pub namespace: Cow<'xml, str>,
+        pub prefix: Cow<'xml, str>,
+        pub name: Cow<'xml, str>,
+
+        pub value: XmpValue<'xml>,
+    }
+
     /// All the possible types an XMP value may have.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
     pub enum XmpValue<'xml> {
@@ -42,11 +54,11 @@ pub mod xmp {
         },
 
         // different array types
-        UnorderedArray(Vec<XmpValue<'xml>>),
-        OrderedArray(Vec<XmpValue<'xml>>),
+        UnorderedArray(Vec<XmpElement<'xml>>),
+        OrderedArray(Vec<XmpElement<'xml>>),
         Alternatives {
-            chosen: Box<XmpValue<'xml>>,
-            list: Vec<XmpValue<'xml>>,
+            chosen: Box<XmpElement<'xml>>,
+            list: Vec<XmpElement<'xml>>,
         },
     }
 
