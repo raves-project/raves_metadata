@@ -229,6 +229,26 @@ fn value_array<'xml>(
         })
         .inspect_err(|e| log::error!("Couldn't find collection container! err: {e}"))?;
 
+    // find the type for each `rdf:li`, if any.
+    //
+    // note that, if we find a non-array outer type, i.e.
+    // `maybe_ty: Some(Struct(...))`, we'll error immediately, as we can't use
+    // a schema that isn't an array
+    let li_schema = match maybe_ty {
+        Some(array_ty) => match array_ty {
+            Kind::UnorderedArray(xmp_kind) | Kind::OrderedArray(xmp_kind) => Some(xmp_kind),
+
+            weird_kind => {
+                log::error!("Weird schema given to array parser: {weird_kind:#?}");
+                return Err(XmpParsingError::ArrayGivenNonArraySchema {
+                    element_name: Cow::from(&element.name),
+                    weird_schema: weird_kind,
+                });
+            }
+        },
+        None => None,
+    };
+
     // grab a list of `rdf:li`
     let lis = collection_elem
         .children
@@ -252,7 +272,7 @@ fn value_array<'xml>(
 
     // parse each `rdf:li` into an `XmpElement`
     let parsed_lis: Vec<_> = lis
-        .flat_map(|li| match maybe_ty {
+        .flat_map(|li| match li_schema {
             Some(ty) => li.value_with_schema(ty),
             None => li.value_generic(),
         })
