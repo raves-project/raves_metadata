@@ -87,15 +87,23 @@ pub fn value_union<'xml>(
             // sorry for this being so sloppy - need to compare both the
             // Some + None cases, and we don't own the &'static str...
             let ns_mismatch = match c_ns {
-                Some(c_ns) => Some(c_ns.as_str()) == known_ns.map(|k: &str| k),
+                Some(c_ns) => Some(c_ns.as_str()) != known_ns.map(|k: &str| k),
                 None => known_ns.is_some(),
             };
             if ns_mismatch {
+                log::trace!(
+                    "Namespaces don't match - not a known field. found: `{c_ns:?}`, want: `{known_ns:?}`."
+                );
                 continue;
             }
 
             // if the names don't match, we can skip the pair
             if c_name != *known_name {
+                log::trace!(
+                    "Names don't match - not a known field. \
+                    found: {c_name} \
+                    want: {known_name}"
+                );
                 continue;
             }
             known_field = true; // still here - we're a known field.
@@ -118,11 +126,32 @@ pub fn value_union<'xml>(
 
     // find the discriminant (or err)
     let Some(found_discriminant) = expected_fields.iter().find(|f| {
-        f.ident() == discriminant.ident.name()
-            && match f.namespace() {
-                Some(ref s) => Some(&**s) == discriminant.ident.ns(),
-                None => discriminant.ident.ns().is_none(),
-            }
+        // the names have to match
+        let names_match = f.ident() == discriminant.ident.name();
+        log::trace!("finding discrim... `names_match: bool = {names_match}`");
+        if !names_match {
+            log::trace!(
+                "name for this field was: `{}`. expected: `{}`",
+                f.ident(),
+                discriminant.ident.name()
+            );
+        }
+
+        // so does the namespace
+        let namespaces_match = match f.namespace() {
+            Some(ref s) => Some(&**s) == discriminant.ident.ns(),
+            None => discriminant.ident.ns().is_none(),
+        };
+        log::trace!("finding discrim... `namespaces_match: bool = {namespaces_match}`");
+        if !namespaces_match {
+            log::trace!(
+                "namespace for this field was: `{:?}`. expected: `{:?}`",
+                f.namespace(),
+                discriminant.ident.ns(),
+            );
+        }
+
+        names_match && namespaces_match
     }) else {
         log::error!(
             "Parsed union, but couldn't find discriminant!
