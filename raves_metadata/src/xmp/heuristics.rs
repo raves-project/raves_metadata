@@ -68,9 +68,9 @@ impl XmpElementHeuristicsExt for xmltree::Element {
             .iter()
             .flat_map(|c| c.as_element())
             .filter_map(|c| match c.name.as_str() {
-                "alt" => Some((c, CollectionKind::Alternatives)),
-                "bag" => Some((c, CollectionKind::Unordered)),
-                "seq" => Some((c, CollectionKind::Ordered)),
+                "Alt" => Some((c, CollectionKind::Alternatives)),
+                "Bag" => Some((c, CollectionKind::Unordered)),
+                "Seq" => Some((c, CollectionKind::Ordered)),
                 _ => None,
             })
             .find(|(collection_elem, _)| {
