@@ -171,3 +171,110 @@ pub fn value_union<'xml>(
         unexpected_fields,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::{
+        xmp::{XmpElement, XmpPrimitive, XmpValue, XmpValueStructField},
+        xmp_parsing_types::XmpKind,
+    };
+    use xmltree::Element;
+
+    use crate::xmp::value::unions::value_union;
+
+    #[test]
+    fn union_colorant() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        //
+
+        let xml = r#"<rdf:li rdf:parseType="Resource" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmpG="http://ns.adobe.com/xap/1.0/g/">
+    <xmpG:swatchName>black</xmpG:swatchName>
+    <xmpG:mode>CMYK</xmpG:mode>
+    <xmpG:type>PROCESS</xmpG:type>
+
+    <xmpG:cyan>100</xmpG:cyan>
+    <xmpG:magenta>100</xmpG:magenta>
+    <xmpG:yellow>100</xmpG:yellow>
+    <xmpG:black>100</xmpG:black>
+</rdf:li>"#;
+
+        let element = Element::parse(xml.as_bytes()).expect("xmltree should parse");
+
+        // grab the `Colorant` type from our types lib
+        let colorant = &raves_metadata_types::xmp_parse_table::types::COLORANT;
+
+        let XmpKind::Union {
+            always,
+            discriminant,
+            optional,
+        } = colorant
+        else {
+            panic!("`Colorant` is no longer a union I guess..?");
+        };
+
+        let parsed_union =
+            value_union(&element, always, discriminant, optional).expect("should parse out union");
+
+        assert_eq!(
+            parsed_union,
+            XmpElement {
+                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                prefix: "rdf".into(),
+                name: "li".into(),
+                value: XmpValue::Union {
+                    discriminant: Box::new(XmpValueStructField::Value {
+                        ident: "mode".into(),
+                        namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                        value: XmpValue::Simple(XmpPrimitive::Text("CMYK".into()))
+                    }),
+                    expected_fields: vec![
+                        // always fields: `swatchName` + `mode`
+                        XmpValueStructField::Value {
+                            ident: "swatchName".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Text("black".into()))
+                        },
+                        XmpValueStructField::Value {
+                            ident: "mode".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Text("CMYK".into()))
+                        },
+                        XmpValueStructField::Value {
+                            ident: "type".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Text("PROCESS".into()))
+                        },
+                        //
+                        // optional fields (for mode::CMYK)
+                        XmpValueStructField::Value {
+                            ident: "cyan".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Real(100.0))
+                        },
+                        XmpValueStructField::Value {
+                            ident: "magenta".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Real(100.0))
+                        },
+                        XmpValueStructField::Value {
+                            ident: "yellow".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Real(100.0))
+                        },
+                        XmpValueStructField::Value {
+                            ident: "black".into(),
+                            namespace: Some("http://ns.adobe.com/xap/1.0/g/".into()),
+                            value: XmpValue::Simple(XmpPrimitive::Real(100.0))
+                        },
+                    ],
+                    unexpected_fields: vec![]
+                }
+            }
+        );
+    }
+}
