@@ -57,8 +57,16 @@ pub mod xmp {
         UnorderedArray(Vec<XmpElement<'xml>>),
         OrderedArray(Vec<XmpElement<'xml>>),
         Alternatives {
-            chosen: Box<XmpElement<'xml>>,
-            list: Vec<XmpElement<'xml>>,
+            /// In `(default_key, default_value)` form.
+            ///
+            /// This is the "chosen" (default) value in the list of
+            /// alternatives.
+            chosen: (Cow<'xml, str>, Box<XmpElement<'xml>>),
+
+            /// This is the full list of alternatives.
+            ///
+            /// Each entry is a `(key, value)` pair.
+            list: Vec<(Cow<'xml, str>, XmpElement<'xml>)>,
         },
     }
 
