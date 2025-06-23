@@ -191,10 +191,17 @@ pub fn value_struct_field<'xml>(
         ),
     };
 
-    Some(XmpValueStructField::Element {
-        ident,
-        namespace,
-        element,
+    Some(match element.value {
+        XmpValue::Simple(_) => XmpValueStructField::Value {
+            ident,
+            namespace,
+            value: element.value,
+        },
+        _ => XmpValueStructField::Element {
+            ident,
+            namespace,
+            element,
+        },
     })
 }
 
