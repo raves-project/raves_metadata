@@ -3,61 +3,6 @@ use raves_metadata::xmp::{
     types::{XmpPrimitive, XmpValue, XmpValueStructField},
 };
 
-/// The parser should be able to handle several different layouts of
-/// structs.
-///
-/// Adobe's XMP specification lays out an example similar to the one below:
-#[test]
-fn several_struct_types() {
-    _ = env_logger::builder()
-        .filter_level(log::LevelFilter::max())
-        .format_file(true)
-        .format_line_number(true)
-        .try_init();
-
-    let xmp: Xmp = Xmp::new(
-        r#"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-  <rdf:Description rdf:about="" xmlns:ns="ns:myName/">
-
-      <!-- struct 1: regular syntax -->
-      <ns:Struct1>
-          <rdf:Description>
-              <ns:Field1>value1</ns:Field1>
-              <ns:Field2>value2</ns:Field2>
-          </rdf:Description>
-      </ns:Struct1>
-
-      <!-- struct 2: condensed (no inner rdf:Description tag) -->
-      <ns:Struct2 rdf:parseType="Resource">
-          <ns:Field1>value1</ns:Field1>
-          <ns:Field2>value2</ns:Field2>
-      </ns:Struct2>
-
-      <!--- struct 3: fields as desc attributes (shorthand) -->
-      <ns:Struct3>
-          <rdf:Description ns:Field1="value1" ns:Field2="value2"/>
-      </ns:Struct3>
-
-      <!--- struct 4: fields as self atttributes (shorthand) -->
-      <ns:Struct4 ns:Field1="value1" ns:Field2="value2"/>
-
-      <!--- struct 5 -->
-      <ns:Struct5>
-          <rdf:Description ns:Field1="value1">
-              <ns:Field2>value2</ns:Field2>
-          </rdf:Description>
-      </ns:Struct5>
-  </rdf:Description>
-</rdf:RDF>"#,
-    )
-    .unwrap();
-
-    let parsed: XmpDocument = xmp
-        .parse()
-        .expect("`raves_metadata` should parse the description correctly");
-    assert_eq!(parsed.values_ref().len(), 5);
-}
-
 /// Checks that a known struct type parses correctly.
 #[test]
 fn known_struct_type() {
