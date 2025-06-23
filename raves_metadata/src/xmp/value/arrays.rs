@@ -284,10 +284,15 @@ fn value_array<'xml>(
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue, XmpValueStructField};
+    use raves_metadata_types::{
+        xmp::{XmpElement, XmpPrimitive, XmpValue, XmpValueStructField},
+        xmp_parse_table::XMP_PARSING_MAP,
+    };
     use xmltree::Element;
 
-    use crate::xmp::value::arrays::{value_alternatives, value_ordered_array};
+    use crate::xmp::value::arrays::{
+        value_alternatives, value_ordered_array, value_unordered_array,
+    };
 
     /// Ensures we can parse a short array of alternatives.
     #[test]
@@ -541,6 +546,58 @@ mod tests {
                             },
                         ]),
                     }
+                ])
+            }
+        );
+    }
+
+    /// This unordered array should parse correctly.
+    #[test]
+    fn should_parse_bag_unordered_array() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let xml: &'static str = r#"
+
+ <Iptc4xmpCore:Scene xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+      <rdf:Bag>
+        <rdf:li>011221</rdf:li>
+           <rdf:li>012221</rdf:li>
+ </rdf:Bag>
+      </Iptc4xmpCore:Scene>"#;
+
+        let element: Element =
+            Element::parse(xml.as_bytes()).expect("`xmltree` should parse XML correctly");
+
+        let schema = XMP_PARSING_MAP
+            .get(&("http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/", "Scene"))
+            .unwrap();
+
+        let xmp: XmpElement = value_unordered_array(&element, Some(schema))
+            .expect("xml contains valid unordered array");
+
+        assert_eq!(
+            xmp,
+            XmpElement {
+                namespace: "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/".into(),
+                prefix: "Iptc4xmpCore".into(),
+                name: "Scene".into(),
+                value: XmpValue::UnorderedArray(vec![
+                    XmpElement {
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        name: "li".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("011221".into()))
+                    },
+                    XmpElement {
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        name: "li".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("012221".into()))
+                    },
                 ])
             }
         );
