@@ -24,16 +24,26 @@ pub fn parse_primitive<'xml>(text: Cow<'xml, str>, prim: &Prim) -> XmpValueResul
 
         Prim::Date => XmpValue::Simple(XmpPrimitive::Date(text)),
 
-        Prim::Integer => XmpValue::Simple(XmpPrimitive::Integer(
-            text.parse()
+        Prim::Integer => {
+            let num = text.parse::<i64>()
+                .map(XmpPrimitive::Integer)
+                .or_else(|e | {
+                    if [core::num::IntErrorKind::NegOverflow, core::num::IntErrorKind::PosOverflow].contains(e.kind())  {
+                        log::warn!("Given number too large for `i64`. Will be exposed as a `Prim::Text`. value: `{}`", text);
+                        Ok(XmpPrimitive::Text(Cow::clone(&text)))
+                    } else { Err(e) }
+                })
                 .inspect_err(|e| {
                     log::error!(
                         "Unable to convert integer value `{text}` into integer. \
                             err: {e}"
                     )
                 })
-                .map_err(|e| XmpParsingError::PrimitiveIntegerParseFail(text, e))?,
-        )),
+                .map_err(|e| XmpParsingError::PrimitiveIntegerParseFail(text, e))
+                .map(XmpValue::Simple);
+
+            num?
+        }
 
         Prim::Real => XmpValue::Simple(XmpPrimitive::Real(
             text.parse()
