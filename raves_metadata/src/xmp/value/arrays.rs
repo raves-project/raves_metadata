@@ -211,8 +211,8 @@ fn value_array<'xml>(
     ordered: bool,
 ) -> XmpElementResult<'xml> {
     let (collection_target, collection_ctor): (&'static str, fn(_) -> _) = match ordered {
-        true => ("seq", XmpValue::OrderedArray),
-        false => ("bag", XmpValue::UnorderedArray),
+        true => ("Seq", XmpValue::OrderedArray),
+        false => ("Bag", XmpValue::UnorderedArray),
     };
 
     // parse out the `rdf:Bag`/`rdf:Seq`
