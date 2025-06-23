@@ -261,3 +261,119 @@ fn value_array<'xml>(
     // return it as the appropriate array
     element.to_xmp_element(collection_ctor(parsed_lis))
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
+    use xmltree::Element;
+
+    use crate::xmp::value::arrays::value_alternatives;
+
+    /// Ensures we can parse a short array of alternatives.
+    #[test]
+    fn should_parse_alternatives() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let xml = r#"
+<dc:title xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Alt>
+        <rdf:li xml:lang="x-default">The Default. Uh... hi!</rdf:li>
+        <rdf:li xml:lang="en-US">English (United States). Howdy!</rdf:li>
+        <rdf:li xml:lang="de">German. Guten Tag!</rdf:li>
+        <rdf:li xml:lang="fr">French. Bonjour !</rdf:li>
+        <rdf:li xml:lang="ja">Japanese. こんにちは！</rdf:li>
+    </rdf:Alt>
+</dc:title>"#;
+
+        let element: Element =
+            Element::parse(xml.as_bytes()).expect("valid XML should be parsed by `xmltree`");
+
+        let xmp_element: XmpElement =
+            value_alternatives(&element, None).expect("should parse as a list of alternatives.");
+
+        assert_eq!(
+            xmp_element,
+            XmpElement {
+                namespace: "http://purl.org/dc/elements/1.1/".into(),
+                prefix: "dc".into(),
+                name: "title".into(),
+                value: XmpValue::Alternatives {
+                    chosen: (
+                        "x-default".into(),
+                        XmpElement {
+                            namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                            prefix: "rdf".into(),
+                            name: "li".into(),
+                            value: XmpValue::Simple(XmpPrimitive::Text(
+                                "The Default. Uh... hi!".into()
+                            ))
+                        }
+                        .into()
+                    ),
+                    list: vec![
+                        (
+                            "x-default".into(),
+                            XmpElement {
+                                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                                prefix: "rdf".into(),
+                                name: "li".into(),
+                                value: XmpValue::Simple(XmpPrimitive::Text(
+                                    "The Default. Uh... hi!".into()
+                                ))
+                            }
+                        ),
+                        (
+                            "en-US".into(),
+                            XmpElement {
+                                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                                prefix: "rdf".into(),
+                                name: "li".into(),
+                                value: XmpValue::Simple(XmpPrimitive::Text(
+                                    "English (United States). Howdy!".into()
+                                ))
+                            }
+                        ),
+                        (
+                            "de".into(),
+                            XmpElement {
+                                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                                prefix: "rdf".into(),
+                                name: "li".into(),
+                                value: XmpValue::Simple(XmpPrimitive::Text(
+                                    "German. Guten Tag!".into()
+                                ))
+                            }
+                        ),
+                        (
+                            "fr".into(),
+                            XmpElement {
+                                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                                prefix: "rdf".into(),
+                                name: "li".into(),
+                                value: XmpValue::Simple(XmpPrimitive::Text(
+                                    "French. Bonjour !".into()
+                                ))
+                            }
+                        ),
+                        (
+                            "ja".into(),
+                            XmpElement {
+                                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                                prefix: "rdf".into(),
+                                name: "li".into(),
+                                value: XmpValue::Simple(XmpPrimitive::Text(
+                                    "Japanese. こんにちは！".into()
+                                ))
+                            }
+                        ),
+                    ]
+                }
+            },
+            "the parsed XMP element should match the expected value."
+        );
+    }
+}
