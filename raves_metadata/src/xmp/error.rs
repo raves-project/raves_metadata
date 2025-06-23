@@ -147,7 +147,7 @@ pub enum XmpParsingError<'xml> {
     /// This one didn't.
     ArrayAltNoDefault {
         element_name: Cow<'xml, str>,
-        alternatives_array: Cow<'xml, [XmpElement<'xml>]>,
+        alternatives_array: Cow<'xml, [(Cow<'xml, str>, XmpElement<'xml>)]>,
     },
 
     //

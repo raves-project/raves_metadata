@@ -80,40 +80,36 @@ pub fn value_alternatives<'xml>(
             // we need to know which case we're workin with.
             //
             // each li should have a case tag
-            let maybe_tag_primitive = li
-                .attributes
-                .iter()
-                .find(|(keys, _)| {
-                    // check prefix (TODO: does `xml` have a namespace URI?)
-                    if keys
-                        .prefix
-                        .as_ref()
-                        .filter(|pre| pre.as_str() == "xml")
-                        .is_none()
-                    {
-                        log::trace!(
-                            "`rdf:li` attr isn't a case tag - missing `xml` namespace prefix. \
+            let maybe_tag_primitive = li.attributes.iter().find(|(keys, _)| {
+                // check prefix (TODO: does `xml` have a namespace URI?)
+                if keys
+                    .prefix
+                    .as_ref()
+                    .filter(|pre| pre.as_str() == "xml")
+                    .is_none()
+                {
+                    log::trace!(
+                        "`rdf:li` attr isn't a case tag - missing `xml` namespace prefix. \
                         got: `{prefix:?}`, \
                         expected: `Some(\"xml\")`",
-                            prefix = keys.prefix
-                        );
-                        return false;
-                    }
+                        prefix = keys.prefix
+                    );
+                    return false;
+                }
 
-                    // check element
-                    if keys.local_name.as_str() != "lang" {
-                        log::trace!(
-                            "`rdf:li` attr isn't a case tag - missing `xml` namespace prefix. \
+                // check element
+                if keys.local_name.as_str() != "lang" {
+                    log::trace!(
+                        "`rdf:li` attr isn't a case tag - missing `xml` namespace prefix. \
                         got: `{prefix:?}`, \
                         expected: `Some(\"xml\")`",
-                            prefix = keys.prefix
-                        );
-                        return false;
-                    }
+                        prefix = keys.prefix
+                    );
+                    return false;
+                }
 
-                    true
-                })
-                .map(|(_, value)| value);
+                true
+            });
 
             if let Some(tag_primitive) = maybe_tag_primitive {
                 return Some((
@@ -133,27 +129,30 @@ pub fn value_alternatives<'xml>(
         .collect();
 
     // find the default one based on the marker
-    let Some((_, chosen_value)) = parsed_lis
+    let Some(((_chosen_tag_idents, chosen_tag_value), chosen_value)) = parsed_lis
         .iter()
-        .find(|(tag, _)| tag.as_str() == "x-default")
+        .find(|((_tag_idents, tag_value), _)| tag_value.as_str() == "x-default")
         .cloned()
     else {
         log::error!("Can't create list of alternatives - no default was found.");
         log::error!("The options found were: {parsed_lis:#?}");
         return Err(XmpParsingError::ArrayAltNoDefault {
             element_name: Cow::from(&element.name),
-            alternatives_array: Cow::from_iter(
-                parsed_lis
-                    .iter()
-                    .map(|(_, parsed_li_elem)| parsed_li_elem.clone()),
-            ),
+            alternatives_array: Cow::from_iter(parsed_lis.iter().map(
+                |((_tag_idents, tag_value), parsed_li_elem)| {
+                    (Cow::from(*tag_value), parsed_li_elem.clone())
+                },
+            )),
         });
     };
 
     // wrap it all up
     let value = XmpValue::Alternatives {
-        chosen: Box::new(chosen_value),
-        list: parsed_lis.into_iter().map(|(_, value)| value).collect(),
+        chosen: (chosen_tag_value.into(), Box::new(chosen_value)),
+        list: parsed_lis
+            .into_iter()
+            .map(|((_tag_idents, tag_value), value)| (Cow::from(tag_value), value))
+            .collect(),
     };
 
     element.to_xmp_element(value)
