@@ -45,35 +45,20 @@ fn known_struct_type() {
     // ensure the values are correct
     assert_eq!(s, {
         let mut v = vec![
-            XmpValueStructField::Element {
+            XmpValueStructField::Value {
                 ident: "w".into(),
                 namespace: Some(r"http://ns.adobe.com/xap/1.0/sType/Dimensions#".into()),
-                element: raves_metadata_types::xmp::XmpElement {
-                    namespace: "http://ns.adobe.com/xap/1.0/sType/Dimensions#".into(),
-                    prefix: "stDim".into(),
-                    name: "w".into(),
-                    value: XmpValue::Simple(XmpPrimitive::Real(4.0)),
-                },
+                value: XmpValue::Simple(XmpPrimitive::Real(4.0)),
             },
-            XmpValueStructField::Element {
+            XmpValueStructField::Value {
                 ident: "h".into(),
                 namespace: Some(r"http://ns.adobe.com/xap/1.0/sType/Dimensions#".into()),
-                element: raves_metadata_types::xmp::XmpElement {
-                    namespace: "http://ns.adobe.com/xap/1.0/sType/Dimensions#".into(),
-                    prefix: "stDim".into(),
-                    name: "h".into(),
-                    value: XmpValue::Simple(XmpPrimitive::Real(3.0)),
-                },
+                value: XmpValue::Simple(XmpPrimitive::Real(3.0)),
             },
-            XmpValueStructField::Element {
+            XmpValueStructField::Value {
                 ident: "unit".into(),
                 namespace: Some(r"http://ns.adobe.com/xap/1.0/sType/Dimensions#".into()),
-                element: raves_metadata_types::xmp::XmpElement {
-                    namespace: "http://ns.adobe.com/xap/1.0/sType/Dimensions#".into(),
-                    prefix: "stDim".into(),
-                    name: "unit".into(),
-                    value: XmpValue::Simple(XmpPrimitive::Text("inch".into())),
-                },
+                value: XmpValue::Simple(XmpPrimitive::Text("inch".into())),
             },
         ];
 

@@ -451,36 +451,20 @@ mod tests {
                         namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
                         prefix: "rdf".into(),
                         name: "li".into(),
-
-                        // note: currently, the parser uses the *schema* to
-                        // determine if this should be `::Element` or `::Value`.
-                        //
-                        // since we don't provide a schema here, it provides the
-                        // `XmpValueStructField::Element` variant by default
                         value: XmpValue::Struct(vec![
-                            XmpValueStructField::Element {
+                            XmpValueStructField::Value {
                                 ident: "rbX".into(),
                                 namespace: Some(
                                     "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
                                 ),
-                                element: XmpElement {
-                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
-                                    prefix: "Iptc4xmpExt".into(),
-                                    name: "rbX".into(),
-                                    value: XmpValue::Simple(XmpPrimitive::Text("0.05".into()))
-                                }
+                                value: XmpValue::Simple(XmpPrimitive::Text("0.05".into()))
                             },
-                            XmpValueStructField::Element {
+                            XmpValueStructField::Value {
                                 ident: "rbY".into(),
                                 namespace: Some(
                                     "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
                                 ),
-                                element: XmpElement {
-                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
-                                    prefix: "Iptc4xmpExt".into(),
-                                    name: "rbY".into(),
-                                    value: XmpValue::Simple(XmpPrimitive::Text("0.713".into()))
-                                }
+                                value: XmpValue::Simple(XmpPrimitive::Text("0.713".into()))
                             },
                         ]),
                     },
@@ -489,29 +473,19 @@ mod tests {
                         prefix: "rdf".into(),
                         name: "li".into(),
                         value: XmpValue::Struct(vec![
-                            XmpValueStructField::Element {
+                            XmpValueStructField::Value {
                                 ident: "rbX".into(),
                                 namespace: Some(
                                     "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
                                 ),
-                                element: XmpElement {
-                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
-                                    prefix: "Iptc4xmpExt".into(),
-                                    name: "rbX".into(),
-                                    value: XmpValue::Simple(XmpPrimitive::Text("0.148".into()))
-                                }
+                                value: XmpValue::Simple(XmpPrimitive::Text("0.148".into()))
                             },
-                            XmpValueStructField::Element {
+                            XmpValueStructField::Value {
                                 ident: "rbY".into(),
                                 namespace: Some(
                                     "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
                                 ),
-                                element: XmpElement {
-                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
-                                    prefix: "Iptc4xmpExt".into(),
-                                    name: "rbY".into(),
-                                    value: XmpValue::Simple(XmpPrimitive::Text("0.041".into()))
-                                }
+                                value: XmpValue::Simple(XmpPrimitive::Text("0.041".into()))
                             },
                         ]),
                     },
@@ -520,29 +494,19 @@ mod tests {
                         prefix: "rdf".into(),
                         name: "li".into(),
                         value: XmpValue::Struct(vec![
-                            XmpValueStructField::Element {
+                            XmpValueStructField::Value {
                                 ident: "rbX".into(),
                                 namespace: Some(
                                     "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
                                 ),
-                                element: XmpElement {
-                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
-                                    prefix: "Iptc4xmpExt".into(),
-                                    name: "rbX".into(),
-                                    value: XmpValue::Simple(XmpPrimitive::Text("0.375".into()))
-                                }
+                                value: XmpValue::Simple(XmpPrimitive::Text("0.375".into()))
                             },
-                            XmpValueStructField::Element {
+                            XmpValueStructField::Value {
                                 ident: "rbY".into(),
                                 namespace: Some(
                                     "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
                                 ),
-                                element: XmpElement {
-                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
-                                    prefix: "Iptc4xmpExt".into(),
-                                    name: "rbY".into(),
-                                    value: XmpValue::Simple(XmpPrimitive::Text("0.863".into()))
-                                }
+                                value: XmpValue::Simple(XmpPrimitive::Text("0.863".into()))
                             },
                         ]),
                     }
