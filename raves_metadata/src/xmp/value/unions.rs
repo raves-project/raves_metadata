@@ -57,6 +57,7 @@ pub fn value_union<'xml>(
         // first, the "always" pairs
         let always_pairs = always
             .iter()
+            .chain([discriminant])
             .map(|f| (f, &f.ident))
             .map(|(f, f_ident)| (f, (f_ident.ns(), f_ident.name())));
 
