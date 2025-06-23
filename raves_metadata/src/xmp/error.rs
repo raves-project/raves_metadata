@@ -7,7 +7,7 @@ use std::{
 
 use raves_metadata_types::{
     xmp::{XmpElement, XmpValue},
-    xmp_parsing_types::XmpKindStructField,
+    xmp_parsing_types::{XmpKind, XmpKindStructField},
 };
 
 pub type XmpValueResult<'xml> = Result<XmpValue<'xml>, XmpParsingError<'xml>>;
@@ -150,6 +150,15 @@ pub enum XmpParsingError<'xml> {
         alternatives_array: Cow<'xml, [(Cow<'xml, str>, XmpElement<'xml>)]>,
     },
 
+    /// The list (un/ordered array) parser was given a schema for, e.g., a
+    /// struct.
+    ///
+    /// We can't continue parsing that since we need to know our internal type.
+    ArrayGivenNonArraySchema {
+        element_name: Cow<'xml, str>,
+        weird_schema: &'static XmpKind,
+    },
+
     //
     //
     //
@@ -265,6 +274,15 @@ impl core::fmt::Display for XmpParsingError<'_> {
                 "Alternatives array `{element_name}` had alternatives, but didn't \
                 specify a default! \
                     - found alternatives: {alternatives_array:#?}",
+            ),
+            XmpParsingError::ArrayGivenNonArraySchema {
+                element_name,
+                weird_schema,
+            } => write!(
+                f,
+                "List-like array `{element_name}` had a weird schema - it \
+                wasn't for an array. \
+                    - schema: {weird_schema:#?}",
             ),
             //
             //
