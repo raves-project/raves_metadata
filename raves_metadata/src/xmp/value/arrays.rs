@@ -264,10 +264,10 @@ fn value_array<'xml>(
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
+    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue, XmpValueStructField};
     use xmltree::Element;
 
-    use crate::xmp::value::arrays::value_alternatives;
+    use crate::xmp::value::arrays::{value_alternatives, value_ordered_array};
 
     /// Ensures we can parse a short array of alternatives.
     #[test]
@@ -374,6 +374,155 @@ mod tests {
                 }
             },
             "the parsed XMP element should match the expected value."
+        );
+    }
+
+    /// An ordered array should be parsed in the order it's in.
+    #[test]
+    fn should_parse_seq_ordered_array() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let xml: &'static str = r#"
+<Iptc4xmpExt:rbVertices xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' xmlns:Iptc4xmpCore='http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/' xmlns:Iptc4xmpExt='http://iptc.org/std/Iptc4xmpExt/2008-02-29/'>
+    <rdf:Seq>
+        <rdf:li rdf:parseType='Resource'>
+            <Iptc4xmpExt:rbX>0.05</Iptc4xmpExt:rbX>
+            <Iptc4xmpExt:rbY>0.713</Iptc4xmpExt:rbY>
+        </rdf:li>
+        <rdf:li rdf:parseType='Resource'>
+            <Iptc4xmpExt:rbX>0.148</Iptc4xmpExt:rbX>
+            <Iptc4xmpExt:rbY>0.041</Iptc4xmpExt:rbY>
+        </rdf:li>
+        <rdf:li rdf:parseType='Resource'>
+            <Iptc4xmpExt:rbX>0.375</Iptc4xmpExt:rbX>
+            <Iptc4xmpExt:rbY>0.863</Iptc4xmpExt:rbY>
+        </rdf:li>
+    </rdf:Seq>
+</Iptc4xmpExt:rbVertices>
+
+
+            "#;
+
+        let element: Element =
+            Element::parse(xml.as_bytes()).expect("`xmltree` should parse XML correctly");
+
+        let xmp: XmpElement = value_ordered_array(&element, None).expect(
+            "element contains a valid ordered array, so it should \
+                parse correctly",
+        );
+
+        assert_eq!(
+            xmp,
+            XmpElement {
+                namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                prefix: "Iptc4xmpExt".into(),
+                name: "rbVertices".into(),
+                value: XmpValue::OrderedArray(vec![
+                    XmpElement {
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        name: "li".into(),
+
+                        // note: currently, the parser uses the *schema* to
+                        // determine if this should be `::Element` or `::Value`.
+                        //
+                        // since we don't provide a schema here, it provides the
+                        // `XmpValueStructField::Element` variant by default
+                        value: XmpValue::Struct(vec![
+                            XmpValueStructField::Element {
+                                ident: "rbX".into(),
+                                namespace: Some(
+                                    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
+                                ),
+                                element: XmpElement {
+                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                                    prefix: "Iptc4xmpExt".into(),
+                                    name: "rbX".into(),
+                                    value: XmpValue::Simple(XmpPrimitive::Text("0.05".into()))
+                                }
+                            },
+                            XmpValueStructField::Element {
+                                ident: "rbY".into(),
+                                namespace: Some(
+                                    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
+                                ),
+                                element: XmpElement {
+                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                                    prefix: "Iptc4xmpExt".into(),
+                                    name: "rbY".into(),
+                                    value: XmpValue::Simple(XmpPrimitive::Text("0.713".into()))
+                                }
+                            },
+                        ]),
+                    },
+                    XmpElement {
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        name: "li".into(),
+                        value: XmpValue::Struct(vec![
+                            XmpValueStructField::Element {
+                                ident: "rbX".into(),
+                                namespace: Some(
+                                    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
+                                ),
+                                element: XmpElement {
+                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                                    prefix: "Iptc4xmpExt".into(),
+                                    name: "rbX".into(),
+                                    value: XmpValue::Simple(XmpPrimitive::Text("0.148".into()))
+                                }
+                            },
+                            XmpValueStructField::Element {
+                                ident: "rbY".into(),
+                                namespace: Some(
+                                    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
+                                ),
+                                element: XmpElement {
+                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                                    prefix: "Iptc4xmpExt".into(),
+                                    name: "rbY".into(),
+                                    value: XmpValue::Simple(XmpPrimitive::Text("0.041".into()))
+                                }
+                            },
+                        ]),
+                    },
+                    XmpElement {
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        name: "li".into(),
+                        value: XmpValue::Struct(vec![
+                            XmpValueStructField::Element {
+                                ident: "rbX".into(),
+                                namespace: Some(
+                                    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
+                                ),
+                                element: XmpElement {
+                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                                    prefix: "Iptc4xmpExt".into(),
+                                    name: "rbX".into(),
+                                    value: XmpValue::Simple(XmpPrimitive::Text("0.375".into()))
+                                }
+                            },
+                            XmpValueStructField::Element {
+                                ident: "rbY".into(),
+                                namespace: Some(
+                                    "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into()
+                                ),
+                                element: XmpElement {
+                                    namespace: "http://iptc.org/std/Iptc4xmpExt/2008-02-29/".into(),
+                                    prefix: "Iptc4xmpExt".into(),
+                                    name: "rbY".into(),
+                                    value: XmpValue::Simple(XmpPrimitive::Text("0.863".into()))
+                                }
+                            },
+                        ]),
+                    }
+                ])
+            }
         );
     }
 }
