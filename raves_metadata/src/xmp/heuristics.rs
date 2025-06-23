@@ -55,8 +55,15 @@ impl XmpElementHeuristicsExt for xmltree::Element {
             return true;
         }
 
-        // if we have fields and no text, we're most likely a struct
-        if self.get_text().is_none() && (!self.children.is_empty() || !self.attributes.is_empty()) {
+        // if we have fields and no sub-elements, we're considered a struct
+        if self.children.is_empty() // we have no sub-elements
+        && self.attributes.iter().any(|(key, _val)| {
+            // (any key) has (any namespace) except that of RDF.
+            //
+            // this allows us to avoid finding "structs" that are actually
+            // blank keys with no attached fields/value.
+            key.namespace_ref().is_none_or(|ns| ns != RDF_NAMESPACE)
+        }) {
             return true;
         }
 
