@@ -72,14 +72,7 @@ pub const COLORANT: Kind = Kind::Union {
     always: &[
         Field {
             ident: Ident::Namespaced {
-                field_name: "mode",
-                namespace: "http://ns.adobe.com/xap/1.0/g/",
-            },
-            ty: &Kind::Simple(Prim::Text),
-        },
-        Field {
-            ident: Ident::Namespaced {
-                field_name: "swatchName",
+                field_name: "type",
                 namespace: "http://ns.adobe.com/xap/1.0/g/",
             },
             ty: &Kind::Simple(Prim::Text),
@@ -92,7 +85,6 @@ pub const COLORANT: Kind = Kind::Union {
             ty: &Kind::Simple(Prim::Text),
         },
     ],
-
     discriminant: Field {
         ident: Ident::Namespaced {
             field_name: "mode",
