@@ -185,3 +185,125 @@ fn try_to_parse_xmp_from_itxt(mut input: &[u8]) -> ModalResult<Option<&str>, Con
             ErrMode::Cut(ce)
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::xmp::{XmpElement, XmpValue};
+
+    use crate::{MetadataProvider as _, providers::png::Png, xmp::Xmp};
+
+    /// Checks that we can parse out a PNG signature.
+    #[test]
+    fn png_signature_parsing() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        assert_eq!(
+            Ok(()),
+            super::parse_png_signature(
+                &mut [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].as_slice()
+            ),
+            "we should successfully parse a PNG signature",
+        )
+    }
+
+    /// Ensures that we can parse out some XMP from a PNG.
+    #[test]
+    fn png_containing_xmp_parses_correctly() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        #[rustfmt::skip]
+        let technically_a_png: Vec<u8> = [
+            // png signature
+           [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].as_slice(),
+
+            // required: `IHDR` (image header)
+            [
+
+                0x0, 0x0, 0x0, 0xD,    // data length
+                b'I', b'H', b'D', b'R', // type
+                0x0, 0x0, 0xA, 0x0,     // res: width (2560_u32)
+                0x0, 0x0, 0x5, 0xA0,    // res: height (1440_u32)
+                8,                      // bit depth (8)
+                6,                      // color type (truecolor w/ alpha)
+                0, 0, 0,                // compression, filter, interlace (all off)
+                0xB3, 0xE4, 0x34, 0x52, // CRC32
+            ].as_slice(),
+
+            // a junk `iTXt` that we don't care about
+            [
+                0x0, 0x0, 0x0, 0x1D, // data length
+                b'i', b'T', b'X', b't', // type
+                b'S', b'o', b'f', b't', b'w', b'a', b'r', b'e', b'\0', // keyword
+                0x00, 0x00, // compression (off)
+                b'e', b'n', b'-', b'U', b'S', b'\0', // language tag
+                b'S', b'o', b'f', b't', b'w', b'a', b'r', b'e', b'\0', // translated keyword
+                b'H', b'i', b'!', // text
+                0x69, 0x5C, 0x21, 0xB2, // CRC
+            ].as_slice(),
+
+            // a good `iTXt` with useful data
+            [
+                // header + data up to XML
+                [
+                    0x0, 0x0, 0x1, 0x67, // data length (363_u32)
+                    b'i', b'T', b'X', b't', // type
+                    b'X', b'M', b'L', b':', b'c', b'o', b'm', b'.', b'a', b'd', b'o', b'b', b'e', b'.', b'x', b'm', b'p', b'\0', // keyword
+                    b'\0', // language tag (none)
+                    b'\0', // translated keyword (none)
+                    0x00, 0x00, // compression (off)
+                ].as_slice(),
+
+                // XMP UTF-8 data as a byte slice
+                r#"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                    <rdf:Description rdf:about="" xmlns:my_ns="https://barretts.club">
+                    <my_ns:MyStruct>
+                        <rdf:Description />
+                    </my_ns:MyStruct>
+                    </rdf:Description>
+                </rdf:RDF>"#.as_bytes(),
+
+                [0xDC, 0xFD, 0x6E, 0x88].as_slice(), // CRC32
+            ]
+            .into_iter()
+            .flat_map(|sli| sli.iter().copied())
+            .collect::<Vec<_>>()
+            .as_slice(),
+
+            // required: `IEND`
+            [0x49, 0x45, 0x4E, 0x44].as_slice(),
+        ]
+        .into_iter()
+        .flat_map(|sli| sli.iter().copied())
+        .collect();
+
+        // with that all over, we can actually run the test ;D
+        let png: Png = Png::new(&technically_a_png);
+        let xmp: Xmp = png.xmp().expect("get XMP from PNG");
+
+        let parsed_xmp = xmp.parse().expect("parse XMP data");
+
+        assert_eq!(
+            parsed_xmp.values_ref().len(),
+            1_usize,
+            "should only parse that one struct"
+        );
+        assert_eq!(
+            parsed_xmp.values_ref().first().expect("must have an item"),
+            &XmpElement {
+                namespace: "https://barretts.club".into(),
+                prefix: "my_ns".into(),
+                name: "MyStruct".into(),
+                value: XmpValue::Struct(Vec::new()),
+            },
+            "found struct should match the expected (right) side"
+        )
+    }
+}
