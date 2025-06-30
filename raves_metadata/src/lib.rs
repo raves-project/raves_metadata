@@ -40,6 +40,8 @@
 
 use iptc::{Iptc, error::IptcError};
 
+use crate::xmp::{Xmp, error::XmpError};
+
 pub mod iptc;
 pub mod providers;
 pub mod xmp;
@@ -54,5 +56,5 @@ pub trait MetadataProvider {
 
     // fn exif(&self) -> Result<Exif, ExifError>;
 
-    // fn xmp(&self) -> Result<Xmp, XmpError>;
+    fn xmp(&self) -> Result<Xmp, XmpError>;
 }
