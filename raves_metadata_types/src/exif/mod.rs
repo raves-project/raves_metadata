@@ -3,6 +3,7 @@ use crate::exif::{
     primitives::{Primitive, PrimitiveTy},
 };
 
+pub mod parse_table;
 pub mod primitives;
 
 /// An image file directory found within Exif metadata.
