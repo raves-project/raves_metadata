@@ -7,6 +7,8 @@ pub mod iptc {
     include!(concat!(env!("OUT_DIR"), "/iptc_keys.rs"));
 }
 
+pub mod exif;
+
 pub mod xmp_parse_table;
 
 /// This is the "data" side of things.
