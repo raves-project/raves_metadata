@@ -42,6 +42,7 @@ use iptc::{Iptc, error::IptcError};
 
 use crate::xmp::{Xmp, error::XmpError};
 
+pub mod exif;
 pub mod iptc;
 pub mod providers;
 pub mod xmp;
