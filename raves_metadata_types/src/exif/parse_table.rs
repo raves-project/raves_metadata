@@ -1,11 +1,31 @@
 use crate::exif::primitives::PrimitiveTy;
 
-/// A list of all known Exif fields.
-#[repr(u16)]
-#[non_exhaustive]
-#[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
-pub enum KnownField {
-    /*
+macro_rules! create_known_fields_enum {
+    ($($variant_ident:ident = $variant_tag:expr,)+) => {
+        /// A list of all known Exif fields.
+        #[repr(u16)]
+        #[non_exhaustive]
+        #[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+        pub enum KnownField {
+            $(
+              $variant_ident = $variant_tag,
+            )+
+        }
+
+        impl core::convert::TryFrom<u16> for KnownField {
+            type Error = ();
+
+            fn try_from(value: u16) -> Result<Self, Self::Error> {
+                    $( $variant_tag => Ok(KnownField::$variant_ident), )+
+                    _ => Err(()),
+                }
+            }
+        }
+    }
+}
+
+create_known_fields_enum! {
+/*
      *
      *
      *  TIFF Rev. 6.0 Attribute List
@@ -53,6 +73,12 @@ pub enum KnownField {
     DateTime = 306,
     Artist = 315,
     Copyright = 33432,
+}
+
+impl core::convert::From<KnownField> for u16 {
+    fn from(tag: KnownField) -> Self {
+        tag as u16
+    }
 }
 
 impl KnownField {
