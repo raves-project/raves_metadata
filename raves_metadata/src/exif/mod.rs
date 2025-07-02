@@ -815,4 +815,140 @@ mod tests {
             "we shouldn't find any IFDs"
         );
     }
+
+    /// Ensures we can parse a blob with multiple IFDs.
+    #[test]
+    fn multiple_ifds() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let mut backing_bytes = Vec::new();
+        backing_bytes.extend_from_slice(b"MM");
+        backing_bytes.extend_from_slice(42_u16.to_be_bytes().as_slice());
+        backing_bytes.extend_from_slice(8_u32.to_be_bytes().as_slice());
+
+        // the first IFD will have width + height
+        backing_bytes.extend_from_slice(2_u16.to_be_bytes().as_slice()); // two fields
+        backing_bytes.extend_from_slice(KnownField::ImageWidth.tag_id().to_be_bytes().as_slice()); // f1 id
+        backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f1 ty
+        backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f1 ct
+        backing_bytes.extend_from_slice(1920_u32.to_be_bytes().as_slice()); // f1 val
+        backing_bytes.extend_from_slice(KnownField::ImageLength.tag_id().to_be_bytes().as_slice()); // f2 id
+        backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f2 ty
+        backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f2 ct
+        backing_bytes.extend_from_slice(1080_u32.to_be_bytes().as_slice()); // f2 val
+
+        // create an offset + some padding for the next IFD
+        let next_ifd_offset = backing_bytes.len() as u32 + 4 + 88;
+        backing_bytes.extend_from_slice(next_ifd_offset.to_be_bytes().as_slice());
+        backing_bytes.extend_from_slice([0_u8; 88].as_slice());
+
+        // IFD #2 gets one veeeery long field
+        backing_bytes.extend_from_slice(1_u16.to_be_bytes().as_slice()); // 1 field
+        backing_bytes.extend_from_slice(
+            KnownField::TransferFunction
+                .tag_id()
+                .to_be_bytes()
+                .as_slice(),
+        ); // f1 tag
+        backing_bytes.extend_from_slice(
+            (KnownField::TransferFunction.types()[0] as u16)
+                .to_be_bytes()
+                .as_slice(),
+        ); // f1 ty
+        backing_bytes.extend_from_slice(
+            {
+                let PrimitiveCount::Known(c) = KnownField::TransferFunction.count() else {
+                    panic!("wrong count");
+                };
+                c
+            }
+            .to_be_bytes()
+            .as_slice(),
+        ); // f1 count
+        // the f1 data will be after all the IFDs, at blob[2000..]
+        let ifd2_f1_data = [99_u8; (3 * 256_usize) * 2].as_slice();
+        backing_bytes.extend_from_slice(2000_u32.to_be_bytes().as_slice());
+
+        // create offset + padding for last IFD
+        // let next_ifd_offset = backing_bytes.len() as u32 + 4 + 823_u32;
+        // let next_ifd_offset: u32 = 0_u32;
+        // backing_bytes.extend_from_slice(next_ifd_offset.to_be_bytes().as_slice());
+        // backing_bytes.extend_from_slice([0_u8; 823].as_slice());
+        let next_ifd_offset = backing_bytes.len() as u32 + 4 + 88;
+        backing_bytes.extend_from_slice(next_ifd_offset.to_be_bytes().as_slice());
+        backing_bytes.extend_from_slice([0_u8; 88].as_slice());
+
+        // IFD #3
+        backing_bytes.extend_from_slice(2_u16.to_be_bytes().as_slice()); // two fields
+        backing_bytes.extend_from_slice(KnownField::ImageWidth.tag_id().to_be_bytes().as_slice()); // f1 tag id
+        backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f1 ty
+        backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f1 count
+        backing_bytes.extend_from_slice(1920_u32.to_be_bytes().as_slice()); // f1 data
+        backing_bytes.extend_from_slice(KnownField::ImageLength.tag_id().to_be_bytes().as_slice()); // f2 tag id
+        backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f2 ty
+        backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f2 count
+        backing_bytes.extend_from_slice(1080_u32.to_be_bytes().as_slice()); // f2 data
+
+        // no more IFDs...
+        backing_bytes.extend_from_slice(0_u32.to_be_bytes().as_slice()); // 'null' offset
+
+        // place the giant [IFD 2, Field 1] data at index 2000.
+        //
+        // but first, add some padding
+        backing_bytes.extend(
+            (0..(2000 - backing_bytes.len()))
+                .map(|_| 0_u8)
+                .collect::<Vec<u8>>(),
+        );
+        backing_bytes.extend_from_slice(ifd2_f1_data);
+
+        let parsed = Exif::new(&mut backing_bytes.as_slice()).expect("parsing should work");
+
+        assert_eq!(
+            parsed,
+            Exif {
+                endianness: Endianness::Big,
+                ifds: vec![
+                    Ifd {
+                        fields: vec![
+                            Ok(Field {
+                                tag: FieldTag::Known(KnownField::ImageWidth),
+                                data: FieldData::Primitive(Primitive::Short(1920)),
+                            }),
+                            Ok(Field {
+                                tag: FieldTag::Known(KnownField::ImageLength),
+                                data: FieldData::Primitive(Primitive::Short(1080)),
+                            })
+                        ]
+                    },
+                    Ifd {
+                        fields: vec![Ok(Field {
+                            tag: FieldTag::Known(KnownField::TransferFunction),
+                            data: FieldData::List {
+                                list: [Primitive::Short((99_u16 << 8) | 99_u16); (3 * 256_usize)]
+                                    .into(),
+                                ty: PrimitiveTy::Short
+                            },
+                        }),]
+                    },
+                    Ifd {
+                        fields: vec![
+                            Ok(Field {
+                                tag: FieldTag::Known(KnownField::ImageWidth),
+                                data: FieldData::Primitive(Primitive::Short(1920)),
+                            }),
+                            Ok(Field {
+                                tag: FieldTag::Known(KnownField::ImageLength),
+                                data: FieldData::Primitive(Primitive::Short(1080)),
+                            })
+                        ]
+                    },
+                ]
+            }
+        )
+    }
 }
