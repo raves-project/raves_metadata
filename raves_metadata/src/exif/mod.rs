@@ -95,7 +95,7 @@ impl Exif {
         while let Some(next_ifd_ptr) = maybe_next_ifd_ptr {
             // swap out the saved input for the absolute offset provided by the
             // previous IFD
-            log::trace!("At next IFD! ptr: {next_ifd_ptr:X}");
+            log::trace!("At next IFD! index: `{next_ifd_ptr}`");
             stateful_input.input = &blob[(next_ifd_ptr as usize)..];
 
             // keep parsing
@@ -259,7 +259,7 @@ fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalError
             log::trace!("There won't be a next IFD.");
             None
         } else {
-            log::trace!("Another IFD was detected! ptr: `{raw_location:X}`");
+            log::trace!("Another IFD was detected! index: `{raw_location}`");
             Some(raw_location)
         }
     };
@@ -307,7 +307,7 @@ fn parse_value(input: &mut Stream) -> ExifFieldResult {
         .map_err(|_: EmptyError| ExifFieldError::FieldNoOffsetOrValue)?;
 
     log::trace!(
-        "(field info... tag: {tag}, ty: {ty:?}, count: {count}, offset: {value_or_offset})"
+        "(field info... tag: {tag}, ty: {ty:?}, count: {count}, value or offset: {value_or_offset})"
     );
 
     // warn if the real type isn't an expected type
@@ -327,9 +327,11 @@ fn parse_value(input: &mut Stream) -> ExifFieldResult {
 
     // check how large the stored data is
     let total_size: u32 = ty.size_bytes() as u32 * count;
+    log::trace!("total size for field: `{total_size}`");
 
     // figure out what `value_or_offset` really is
     let is_offset: bool = total_size > 4_u32;
+    log::trace!("field has offset instead of inline data..? `{is_offset}`");
     let value: [u8; 4] = match endianness {
         WinnowEndianness::Big => value_or_offset.to_be_bytes(),
         WinnowEndianness::Little => value_or_offset.to_le_bytes(),
@@ -401,7 +403,7 @@ fn parse_value(input: &mut Stream) -> ExifFieldResult {
     let field_data = match count {
         // if the count is zero, we won't perform any work at all
         0_u32 => {
-            log::trace!("There are no stored primitives in this IFD. Returning early!");
+            log::trace!("There are no stored primitives in this field. Returning early!");
             FieldData::None(ty)
         }
 
