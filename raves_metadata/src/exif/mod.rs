@@ -521,15 +521,16 @@ fn parse_primitive(input: &mut PrimitiveStream) -> Result<Primitive, ExifFieldEr
 #[cfg(test)]
 mod tests {
     use raves_metadata_types::exif::{
-        Endianness, FieldData, FieldTag,
+        Endianness, Field, FieldData, FieldTag,
         parse_table::{KnownField, PrimitiveCount},
-        primitives::Primitive,
+        primitives::{Primitive, PrimitiveTy},
     };
     use winnow::binary::Endianness as WinnowEndianness;
 
     use crate::exif::{
-        Exif, error::ExifFatalError, parse_blob_endianness, parse_tiff_header_offset,
-        parse_tiff_magic_number,
+        Exif, Ifd, State, Stream,
+        error::{ExifFatalError, ExifFieldError},
+        parse_blob_endianness, parse_tiff_header_offset, parse_tiff_magic_number,
     };
 
     /// Checks that we're able to parse endianness properly.
@@ -677,6 +678,45 @@ mod tests {
                 }
             }),
             Err(ExifFieldError::FieldUnknownType { got: 0_u16 })
+        );
+    }
+
+    /// We should accept a long, unknown field.
+    #[test]
+    fn long_field() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let mut backing_bytes = Vec::new();
+        backing_bytes.extend_from_slice(666_u16.to_le_bytes().as_slice()); // field tag id
+        backing_bytes.extend_from_slice(1_u16.to_le_bytes().as_slice()); // field type
+        backing_bytes.extend_from_slice(300_u32.to_le_bytes().as_slice()); // field count
+        backing_bytes.extend_from_slice(
+            (backing_bytes.len() as u32 + 20_u32)
+                .to_le_bytes()
+                .as_slice(),
+        ); // "the data is in 20 more bytes, including me"
+        backing_bytes.extend_from_slice([0_u8; 16].as_slice()); // 16 bytes of padding
+        backing_bytes.extend_from_slice([61_u8; 300].as_slice()); // field data
+
+        assert_eq!(
+            super::parse_value(&mut Stream {
+                input: &backing_bytes,
+                state: State {
+                    endianness: &WinnowEndianness::Little,
+                    blob: &backing_bytes,
+                }
+            }),
+            Ok(Field {
+                tag: FieldTag::Unknown(666_u16),
+                data: FieldData::List {
+                    list: [Primitive::Byte(61_u8); 300].into(),
+                    ty: PrimitiveTy::Byte
+                }
+            })
         );
     }
 
