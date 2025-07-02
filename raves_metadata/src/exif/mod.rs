@@ -651,6 +651,33 @@ mod tests {
         );
     }
 
+    /// Unknown types should be rejected.
+    #[test]
+    fn unknown_type() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let mut backing_bytes = Vec::new();
+        backing_bytes.extend_from_slice(0_u16.to_le_bytes().as_slice()); // field tag id
+        backing_bytes.extend_from_slice(0_u16.to_le_bytes().as_slice()); // field type
+        backing_bytes.extend_from_slice(1_u32.to_le_bytes().as_slice()); // field count
+        backing_bytes.extend_from_slice(0_u32.to_le_bytes().as_slice()); // data
+
+        assert_eq!(
+            super::parse_value(&mut Stream {
+                input: &backing_bytes,
+                state: State {
+                    endianness: &WinnowEndianness::Little,
+                    blob: &backing_bytes,
+                }
+            }),
+            Err(ExifFieldError::FieldUnknownType { got: 0_u16 })
+        );
+    }
+
     #[test]
     fn parses_minimal_exif() {
         _ = env_logger::builder()
