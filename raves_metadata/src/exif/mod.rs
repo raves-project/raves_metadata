@@ -519,7 +519,9 @@ fn parse_primitive(input: &mut PrimitiveStream) -> Result<Primitive, ExifFieldEr
 #[cfg(test)]
 mod tests {
     use raves_metadata_types::exif::{
-        Endianness, FieldData, FieldTag, parse_table::KnownField, primitives::Primitive,
+        Endianness, FieldData, FieldTag,
+        parse_table::{KnownField, PrimitiveCount},
+        primitives::Primitive,
     };
     use winnow::binary::Endianness as WinnowEndianness;
 
@@ -663,16 +665,11 @@ mod tests {
         backing_bytes.extend_from_slice(9_u32.to_le_bytes().as_slice()); // 9 bytes to skip - 8 are the header
         backing_bytes.push(u8::MAX); // push a junk byte! should be ignored.
 
-        // there's only one IFD entry
+        // there's only one field in this IFD
         backing_bytes.extend_from_slice(1_u16.to_le_bytes().as_slice());
 
         // make an IFD entry
-        backing_bytes.extend_from_slice(
-            raves_metadata_types::exif::parse_table::KnownField::ImageWidth
-                .tag_id()
-                .to_le_bytes()
-                .as_slice(),
-        );
+        backing_bytes.extend_from_slice(KnownField::ImageWidth.tag_id().to_le_bytes().as_slice());
         backing_bytes.extend_from_slice(3_u16.to_le_bytes().as_slice());
         backing_bytes.extend_from_slice(1_u32.to_le_bytes().as_slice());
         backing_bytes.extend_from_slice(1920_u16.to_le_bytes().as_slice());
@@ -702,6 +699,33 @@ mod tests {
             field.data,
             FieldData::Primitive(Primitive::Short(1920)),
             "field val"
+        );
+    }
+
+    /// We should succeed at parsing when no IFDs are present.
+    #[test]
+    fn no_ifds() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let mut backing_bytes = Vec::new();
+
+        // header
+        backing_bytes.extend_from_slice(b"II");
+        backing_bytes.extend_from_slice(42_u16.to_le_bytes().as_slice());
+        backing_bytes.extend_from_slice(8_u32.to_le_bytes().as_slice());
+
+        let parsed = Exif::new(&mut backing_bytes.as_slice());
+        assert_eq!(
+            parsed,
+            Ok(Exif {
+                endianness: Endianness::Little,
+                ifds: vec![]
+            }),
+            "we shouldn't find any IFDs"
         );
     }
 }
