@@ -516,3 +516,192 @@ fn parse_primitive(input: &mut PrimitiveStream) -> Result<Primitive, ExifFieldEr
         )),
     }
 }
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::exif::{
+        Endianness, FieldData, FieldTag, parse_table::KnownField, primitives::Primitive,
+    };
+    use winnow::binary::Endianness as WinnowEndianness;
+
+    use crate::exif::{
+        Exif, error::ExifFatalError, parse_blob_endianness, parse_tiff_header_offset,
+        parse_tiff_magic_number,
+    };
+
+    /// Checks that we're able to parse endianness properly.
+    #[test]
+    fn endianness() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        assert_eq!(
+            parse_blob_endianness(&mut b"II".as_slice()),
+            Ok(Endianness::Little)
+        );
+        assert_eq!(
+            parse_blob_endianness(&mut b"MM".as_slice()),
+            Ok(Endianness::Big)
+        );
+        assert!(
+            parse_blob_endianness(&mut b"other".as_slice()).is_err(),
+            "other strings aren't indicative of endianness"
+        );
+    }
+
+    /// Checks if we can parse the TIFF header correctly.
+    #[test]
+    fn tiff_header() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let backing_bytes = {
+            let mut v = Vec::new();
+            v.append(&mut b"II".to_vec());
+            v.push(0x2a);
+            v.push(0x00);
+            v
+        };
+        let bytes = &mut backing_bytes.as_slice();
+
+        // first, parse out the endianness
+        let endianness = parse_blob_endianness(bytes);
+        assert_eq!(endianness, Ok(Endianness::Little));
+        log::info!("backing bytes now: {backing_bytes:#?}");
+
+        // then, check for the header
+        assert_eq!(
+            parse_tiff_magic_number(&mut super::Stream {
+                state: super::State {
+                    endianness: &WinnowEndianness::Little,
+                    blob: backing_bytes.as_slice()
+                },
+                input: bytes
+            }),
+            Ok(()),
+            "should find header"
+        );
+    }
+
+    /// Checks if we can parse the TIFF header offset correctly.
+    #[test]
+    fn tiff_header_offset() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let backing_bytes = {
+            let mut v = Vec::new();
+            v.extend_from_slice(b"II".as_slice());
+            v.push(0x2a);
+            v.push(0x00);
+            v.extend_from_slice(8_u32.to_le_bytes().as_slice());
+            v
+        };
+        let bytes = &mut backing_bytes.as_slice();
+
+        // parse out the endianness
+        let endianness = parse_blob_endianness(bytes);
+        assert_eq!(endianness, Ok(Endianness::Little));
+        log::info!("backing bytes now: {backing_bytes:#?}");
+
+        let stream = &mut super::Stream {
+            state: super::State {
+                endianness: &WinnowEndianness::Little,
+                blob: backing_bytes.as_slice(),
+            },
+            input: bytes,
+        };
+
+        // check for the header
+        assert_eq!(parse_tiff_magic_number(stream), Ok(()));
+
+        // ensure the offset is zero
+        assert_eq!(parse_tiff_header_offset(stream), Ok(0_u32));
+
+        // also, ensure that headers with weird values (i.e. < 8) fail to parse
+        assert_eq!(
+            parse_tiff_header_offset(&mut super::Stream {
+                state: super::State {
+                    endianness: &WinnowEndianness::Little,
+                    blob: backing_bytes.as_slice()
+                },
+                input: 7_u32.to_le_bytes().as_slice(),
+            }),
+            Err(ExifFatalError::HeaderOffsetBeforeHeader),
+        );
+        assert_eq!(
+            parse_tiff_header_offset(&mut super::Stream {
+                state: super::State {
+                    endianness: &WinnowEndianness::Little,
+                    blob: backing_bytes.as_slice()
+                },
+                input: 0_u32.to_le_bytes().as_slice(),
+            }),
+            Err(ExifFatalError::HeaderOffsetBeforeHeader),
+        );
+    }
+
+    #[test]
+    fn parses_minimal_exif() {
+        _ = env_logger::builder()
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        let mut backing_bytes = Vec::new();
+        backing_bytes.extend_from_slice(b"II");
+        backing_bytes.extend_from_slice(42_u16.to_le_bytes().as_slice());
+        backing_bytes.extend_from_slice(9_u32.to_le_bytes().as_slice()); // 9 bytes to skip - 8 are the header
+        backing_bytes.push(u8::MAX); // push a junk byte! should be ignored.
+
+        // there's only one IFD entry
+        backing_bytes.extend_from_slice(1_u16.to_le_bytes().as_slice());
+
+        // make an IFD entry
+        backing_bytes.extend_from_slice(
+            raves_metadata_types::exif::parse_table::KnownField::ImageWidth
+                .tag_id()
+                .to_le_bytes()
+                .as_slice(),
+        );
+        backing_bytes.extend_from_slice(3_u16.to_le_bytes().as_slice());
+        backing_bytes.extend_from_slice(1_u32.to_le_bytes().as_slice());
+        backing_bytes.extend_from_slice(1920_u16.to_le_bytes().as_slice());
+        backing_bytes.extend_from_slice(0_u16.to_le_bytes().as_slice());
+
+        // no other IFDs are after this one
+        backing_bytes.extend_from_slice(0_u32.to_le_bytes().as_slice());
+
+        let mut bytes = backing_bytes.as_slice();
+
+        let exif = Exif::new(&mut bytes).unwrap();
+        assert_eq!(exif.ifds.len(), 1, "only one IFD");
+
+        // grab the only IFD and its only field
+        let ifd0 = &exif.ifds[0];
+        let Ok(ref field) = ifd0.fields[0] else {
+            panic!("should have a field");
+        };
+
+        // check that it's right
+        assert_eq!(
+            field.tag,
+            FieldTag::Known(KnownField::ImageWidth),
+            "field tag"
+        );
+        assert_eq!(
+            field.data,
+            FieldData::Primitive(Primitive::Short(1920)),
+            "field val"
+        );
+    }
+}
