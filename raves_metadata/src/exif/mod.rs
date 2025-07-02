@@ -702,6 +702,24 @@ mod tests {
         );
     }
 
+    /// IDFs without fields are disallowed - they should fail parsing.
+    #[test]
+    fn ifd_with_no_fields_should_fail() {
+        let mut backing_bytes = Vec::new();
+
+        // header
+        backing_bytes.extend_from_slice(b"MM");
+        backing_bytes.extend_from_slice(42_u16.to_be_bytes().as_slice());
+        backing_bytes.extend_from_slice(8_u32.to_be_bytes().as_slice());
+
+        // invalid 'blank' IFD
+        backing_bytes.extend_from_slice(0_u16.to_be_bytes().as_slice());
+        backing_bytes.extend_from_slice(0_u32.to_le_bytes().as_slice());
+
+        let parsed = Exif::new(&mut backing_bytes.as_slice());
+        assert_eq!(parsed, Err(ExifFatalError::IfdHadZeroFields))
+    }
+
     /// We should succeed at parsing when no IFDs are present.
     #[test]
     fn no_ifds() {
