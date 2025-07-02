@@ -27,7 +27,7 @@ impl core::fmt::Display for Iptc4XmpError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Iptc4XmpError::XmlParseError(e) => {
-                write!(f, "Encountered error while parsing XML. err: {}", e)
+                write!(f, "Encountered error while parsing XML. err: {e}")
             }
 
             Iptc4XmpError::NoRdfElement => {
