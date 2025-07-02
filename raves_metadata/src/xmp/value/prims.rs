@@ -29,7 +29,7 @@ pub fn parse_primitive<'xml>(text: Cow<'xml, str>, prim: &Prim) -> XmpValueResul
                 .map(XmpPrimitive::Integer)
                 .or_else(|e | {
                     if [core::num::IntErrorKind::NegOverflow, core::num::IntErrorKind::PosOverflow].contains(e.kind())  {
-                        log::warn!("Given number too large for `i64`. Will be exposed as a `Prim::Text`. value: `{}`", text);
+                        log::warn!("Given number too large for `i64`. Will be exposed as a `Prim::Text`. value: `{text}`");
                         Ok(XmpPrimitive::Text(Cow::clone(&text)))
                     } else { Err(e) }
                 })

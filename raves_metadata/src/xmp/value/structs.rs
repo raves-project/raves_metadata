@@ -55,10 +55,7 @@ pub fn value_struct<'elem>(
         //
         // however, we can only parse primitives, so complain if it asks us to
         // do something else
-        log::trace!(
-            "Getting field info on struct field: `{struct_field_name}`",
-            struct_field_name = name
-        );
+        log::trace!("Getting field info on struct field: `{name}`");
         if let Some(field_info) = get_field_info(ns, name) {
             // check that it's a primitive
             let Kind::Simple(prim) = field_info.ty else {
@@ -71,9 +68,8 @@ pub fn value_struct<'elem>(
 
             // parse the primitive
             log::trace!(
-                "Struct field `{struct_field_name}` was in the schema! \
-                Constructing accordingly...",
-                struct_field_name = name
+                "Struct field `{name}` was in the schema! \
+                Constructing accordingly..."
             );
             return Some(XmpValueStructField::Value {
                 ident: field_info.ident.name().into(),
@@ -92,9 +88,8 @@ pub fn value_struct<'elem>(
         //
         // that makes things easy!
         log::trace!(
-            "Struct field `{struct_field_name}` was not in the schema! \
-            Constructing text value...",
-            struct_field_name = name
+            "Struct field `{name}` was not in the schema! \
+            Constructing text value..."
         );
         Some(XmpValueStructField::Value {
             ident: name.into(),
