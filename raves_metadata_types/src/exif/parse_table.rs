@@ -1,7 +1,15 @@
 use crate::exif::primitives::PrimitiveTy;
 
+/// Creates the entire `KnownFields` enum from all its variants.
+///
+/// However, this macro also allows moving lots of data into one place, which
+/// is nice for maintenance!
 macro_rules! create_known_fields_enum {
-    ($($variant_ident:ident = $variant_tag:expr,)+) => {
+    ($( $variant_ident:ident = $variant_tag:expr => {
+        name: $tag_name:expr,
+        types: $types:expr,
+        count: $count:expr,
+    }, )+) => {
         /// A list of all known Exif fields.
         #[repr(u16)]
         #[non_exhaustive]
@@ -16,274 +24,265 @@ macro_rules! create_known_fields_enum {
             type Error = ();
 
             fn try_from(value: u16) -> Result<Self, Self::Error> {
+                match value {
                     $( $variant_tag => Ok(KnownField::$variant_ident), )+
                     _ => Err(()),
+                }
+            }
+        }
+
+        impl KnownField {
+            /// Grabs a field's tag name as defined in the standard.
+            ///
+            /// ```
+            /// use raves_metadata_types::exif::parse_table::KnownField;
+            ///
+            /// let image_width: KnownField = KnownField::ImageWidth;
+            /// assert_eq!(image_width.tag_name(), "Image width");
+            /// ```
+            pub const fn tag_name(&self) -> &'static str {
+                match self {
+                    $( KnownField::$variant_ident => $tag_name, )+
+                }
+            }
+
+
+            /// Returns this field's tag ID.
+            ///
+            /// ```
+            /// use raves_metadata_types::exif::parse_table::KnownField;
+            ///
+            /// let image_width: KnownField = KnownField::ImageWidth;
+            /// assert_eq!(image_width.tag_id(), 256_u16);
+            /// ```
+            pub const fn tag_id(&self) -> u16 {
+                *self as u16
+            }
+
+            /// Returns the type(s) this field may take.
+            ///
+            /// ```
+            /// use raves_metadata_types::exif::{
+            ///     parse_table::KnownField,
+            ///     primitives::PrimitiveTy,
+            /// };
+            ///
+            /// let image_width: KnownField = KnownField::ImageWidth;
+            /// assert_eq!(image_width.types(), &[PrimitiveTy::Short, PrimitiveTy::Long]);
+            /// ```
+            pub const fn types(&self) -> &'static [PrimitiveTy] {
+                match self {
+                    $( KnownField::$variant_ident => $types, )+
+                }
+            }
+
+            /// Returns the number of primitives this field may have.
+            ///
+            /// ```
+            /// use raves_metadata_types::exif::parse_table::{
+            ///     KnownField,
+            ///     PrimitiveCount,
+            /// };
+            ///
+            /// let image_width: KnownField = KnownField::ImageWidth;
+            /// assert_eq!(image_width.count(), PrimitiveCount::Known(1));
+            /// ```
+            pub const fn count(&self) -> PrimitiveCount {
+                match self {
+                    $( KnownField::$variant_ident => $count, )+
                 }
             }
         }
     }
 }
 
+use {PrimitiveCount as Pc, PrimitiveTy as Pt};
+
 create_known_fields_enum! {
-/*
+    /*
+     *
+     *
+     *
+     *
+     *
      *
      *
      *  TIFF Rev. 6.0 Attribute List
      *
      *
+     *
+     *
+     *
+     *
+     *
+     *
      */
     //
     // image data structure
-    ImageWidth = 256,
-    ImageLength = 257,
-    BitsPerSample = 258,
-    Compression = 259,
-    PhotometricInterpretation = 262,
-    Orientation = 274,
-    SamplesPerPixel = 277,
-    XResolution = 282,
-    YResolution = 283,
-    PlanarConfiguration = 284,
-    ResolutionUnit = 296,
-    YCbCrSubSampling = 530,
-    YCbCrPositioning = 531,
+    ImageWidth = 256 => {
+        name: "Image width",
+        types: &[Pt::Short, Pt::Long],
+        count: Pc::Known(1),
+    },
+    ImageLength = 257 => {
+        name: "Image height",
+        types: &[Pt::Short, Pt::Long],
+        count: Pc::Known(1),
+    },
+    BitsPerSample = 258 => {
+        name: "Number of bits per component",
+        types: &[Pt::Short],
+        count: Pc::Known(3),
+    },
+    Compression = 259 => {
+        name: "Compression scheme",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
+    PhotometricInterpretation = 262 => {
+        name: "Pixel composition",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
+    Orientation = 274 => {
+        name: "Orientation of image",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
+    SamplesPerPixel = 277 => {
+        name: "Number of components",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
+    XResolution = 282 => {
+        name: "Image resolution in width direction",
+        types: &[Pt::Rational],
+        count: Pc::Known(1),
+    },
+    YResolution = 283 => {
+        name: "Image resolution in height direction",
+        types: &[Pt::Rational],
+        count: Pc::Known(1),
+    },
+    PlanarConfiguration = 284 => {
+        name: "Image data arrangement",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
+    ResolutionUnit = 296 => {
+        name: "Unit of X and Y resolution",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
+    YCbCrSubSampling = 530 => {
+        name: "Subsampling ratio of Y to C",
+        types: &[Pt::Short],
+        count: Pc::Known(2),
+    },
+    YCbCrPositioning = 531 => {
+        name: "Y and C positioning",
+        types: &[Pt::Short],
+        count: Pc::Known(1),
+    },
 
     //
     // recording offset
-    StripOffsets = 273,
-    RowsPerStrip = 278,
-    StripByteCounts = 279,
-    JPEGInterchangeFormat = 513,
-    JPEGInterchangeFormatLength = 514,
+    StripOffsets = 273 => {
+        name: "Offset to strip",
+        types: &[Pt::Short, Pt::Long],
+        count: Pc::SpecialHandling,
+    },
+    RowsPerStrip = 278 => {
+        name: "Number of rows per strip",
+        types: &[Pt::Short, Pt::Long],
+        count: Pc::Known(1),
+    },
+    StripByteCounts = 279 => {
+        name: "Bytes per compressed strip",
+        types: &[Pt::Short, Pt::Long],
+        count: Pc::SpecialHandling,
+    },
+    JPEGInterchangeFormat = 513 => {
+        name: "Offset to JPEG SOI",
+        types: &[Pt::Long],
+        count: Pc::Known(1),
+    },
+    JPEGInterchangeFormatLength = 514 => {
+        name: "Bytes of JPEG data",
+        types: &[Pt::Long],
+        count: Pc::Known(1),
+    },
 
     //
     // image data characteristics
-    TransferFunction = 301,
-    WhitePoint = 318,
-    PrimaryChromaticities = 319,
-    YCbCrCoefficients = 529,
-    ReferenceBlackWhite = 532,
+    TransferFunction = 301 => {
+        name: "Transfer function",
+        types: &[Pt::Short],
+        count: Pc::Known(3 * 256),
+    },
+    WhitePoint = 318 => {
+        name: "White point chromaticity",
+        types: &[Pt::Rational],
+        count: Pc::Known(2),
+    },
+    PrimaryChromaticities = 319 => {
+        name: "Chromaticities of primaries",
+        types: &[Pt::Rational],
+        count: Pc::Known(6),
+    },
+    YCbCrCoefficients = 529 => {
+        name: "Color space transformation matrix coefficients",
+        types: &[Pt::Rational],
+        count: Pc::Known(3),
+    },
+    ReferenceBlackWhite = 532 => {
+        name: "Pair of black and white reference values",
+        types: &[Pt::Rational],
+        count: Pc::Known(6),
+    },
 
     //
     // other tags
-    ImageDescription = 270,
-    Make = 271,
-    Model = 272,
-    Software = 305,
-    DateTime = 306,
-    Artist = 315,
-    Copyright = 33432,
+    ImageDescription = 270 => {
+        name: "Description of Image",
+        types: &[Pt::Ascii, Pt::Utf8],
+        count: Pc::Any,
+    },
+    Make = 271 => {
+        name: "Image input equipment manufacturer",
+        types: &[Pt::Ascii, Pt::Utf8],
+        count: Pc::Any,
+    },
+    Model = 272 => {
+        name: "Image input equipment model",
+        types: &[Pt::Ascii, Pt::Utf8],
+        count: Pc::Any,
+    },
+    Software = 305 => {
+        name: "Software used",
+        types: &[Pt::Ascii, Pt::Utf8],
+        count: Pc::Any,
+    },
+    DateTime = 306 => {
+        name: "File change date and time",
+        types: &[Pt::Ascii],
+        count: Pc::Known(20),
+    },
+    Artist = 315 => {
+        name: "Person who created the image",
+        types: &[Pt::Ascii, Pt::Utf8],
+        count: Pc::Any,
+    },
+    Copyright = 33432 => {
+        name: "Copyright holder",
+        types: &[Pt::Ascii, Pt::Utf8],
+        count: Pc::Any,
+    },
 }
 
 impl core::convert::From<KnownField> for u16 {
     fn from(tag: KnownField) -> Self {
         tag as u16
-    }
-}
-
-impl KnownField {
-    /// Grabs a field's tag name as defined in the standard.
-    ///
-    /// ```
-    /// use raves_metadata_types::exif::parse_table::KnownField;
-    ///
-    /// let image_width: KnownField = KnownField::ImageWidth;
-    /// assert_eq!(image_width.tag_name(), "Image width");
-    /// ```
-    pub const fn tag_name(&self) -> &'static str {
-        match self {
-            /*
-             *
-             *
-             *  TIFF Rev. 6.0 Attribute List
-             *
-             *
-             */
-            //
-            // image data structure
-            KnownField::ImageWidth => "Image width",
-            KnownField::ImageLength => "Image height",
-            KnownField::BitsPerSample => "Number of bits per component",
-            KnownField::Compression => "Compression scheme",
-            KnownField::PhotometricInterpretation => "Pixel composition",
-            KnownField::Orientation => "Orientation of image",
-            KnownField::SamplesPerPixel => "Number of components",
-            KnownField::XResolution => "Image resolution in width direction",
-            KnownField::YResolution => "Image resolution in height direction",
-            KnownField::PlanarConfiguration => "Image data arrangement",
-            KnownField::ResolutionUnit => "Unit of X and Y resolution",
-            KnownField::YCbCrSubSampling => "Subsampling ratio of Y to C",
-            KnownField::YCbCrPositioning => "Y and C positioning",
-
-            //
-            // recording offset
-            KnownField::StripOffsets => "Offset to strip",
-            KnownField::RowsPerStrip => "Number of rows per strip",
-            KnownField::StripByteCounts => "Bytes per compressed strip",
-            KnownField::JPEGInterchangeFormat => "Offset to JPEG SOI",
-            KnownField::JPEGInterchangeFormatLength => "Bytes of JPEG data",
-
-            //
-            // image data characteristics
-            KnownField::TransferFunction => "Transfer function",
-            KnownField::WhitePoint => "White point chromaticity",
-            KnownField::PrimaryChromaticities => "Chromaticities of primaries",
-            KnownField::YCbCrCoefficients => "Color space transformation matrix coefficients",
-            KnownField::ReferenceBlackWhite => "Pair of black and white reference values",
-
-            //
-            // other tags
-            KnownField::ImageDescription => "Description of Image",
-            KnownField::Make => "Image input equipment manufacturer",
-            KnownField::Model => "Image input equipment model",
-            KnownField::Software => "Software used",
-            KnownField::DateTime => "File change date and time",
-            KnownField::Artist => "Person who created the image",
-            KnownField::Copyright => "Copyright holder",
-        }
-    }
-
-    /// Returns this field's tag ID.
-    ///
-    /// ```
-    /// use raves_metadata_types::exif::parse_table::KnownField;
-    ///
-    /// let image_width: KnownField = KnownField::ImageWidth;
-    /// assert_eq!(image_width.tag_id(), 256_u16);
-    /// ```
-    pub const fn tag_id(&self) -> u16 {
-        *self as u16
-    }
-
-    /// Returns the type(s) this field may take.
-    ///
-    /// ```
-    /// use raves_metadata_types::exif::{
-    ///     parse_table::KnownField,
-    ///     primitives::PrimitiveTy,
-    /// };
-    ///
-    /// let image_width: KnownField = KnownField::ImageWidth;
-    /// assert_eq!(image_width.types(), &[PrimitiveTy::Short, PrimitiveTy::Long]);
-    /// ```
-    pub const fn types(&self) -> &'static [PrimitiveTy] {
-        use super::PrimitiveTy as Pt;
-
-        match self {
-            /*
-             *
-             *
-             *  TIFF Rev. 6.0 Attribute List
-             *
-             *
-             */
-            //
-            // image data structure
-            KnownField::ImageWidth => &[Pt::Short, Pt::Long],
-            KnownField::ImageLength => &[Pt::Short, Pt::Long],
-            KnownField::BitsPerSample => &[Pt::Short],
-            KnownField::Compression => &[Pt::Short],
-            KnownField::PhotometricInterpretation => &[Pt::Short],
-            KnownField::Orientation => &[Pt::Short],
-            KnownField::SamplesPerPixel => &[Pt::Short],
-            KnownField::XResolution => &[Pt::Rational],
-            KnownField::YResolution => &[Pt::Rational],
-            KnownField::PlanarConfiguration => &[Pt::Short],
-            KnownField::ResolutionUnit => &[Pt::Short],
-            KnownField::YCbCrSubSampling => &[Pt::Short],
-            KnownField::YCbCrPositioning => &[Pt::Short],
-
-            //
-            // recording offset
-            KnownField::StripOffsets => &[Pt::Short, Pt::Long],
-            KnownField::RowsPerStrip => &[Pt::Short, Pt::Long],
-            KnownField::StripByteCounts => &[Pt::Short, Pt::Long],
-            KnownField::JPEGInterchangeFormat => &[Pt::Long],
-            KnownField::JPEGInterchangeFormatLength => &[Pt::Long],
-
-            //
-            // image data characteristics
-            KnownField::TransferFunction => &[Pt::Short],
-            KnownField::WhitePoint => &[Pt::Rational],
-            KnownField::PrimaryChromaticities => &[Pt::Rational],
-            KnownField::YCbCrCoefficients => &[Pt::Rational],
-            KnownField::ReferenceBlackWhite => &[Pt::Rational],
-
-            //
-            // other tags
-            KnownField::ImageDescription => &[PrimitiveTy::Ascii, PrimitiveTy::Utf8],
-            KnownField::Make => &[PrimitiveTy::Ascii, PrimitiveTy::Utf8],
-            KnownField::Model => &[PrimitiveTy::Ascii, PrimitiveTy::Utf8],
-            KnownField::Software => &[PrimitiveTy::Ascii, PrimitiveTy::Utf8],
-            KnownField::DateTime => &[PrimitiveTy::Ascii],
-            KnownField::Artist => &[PrimitiveTy::Ascii, PrimitiveTy::Utf8],
-            KnownField::Copyright => &[PrimitiveTy::Ascii, PrimitiveTy::Utf8],
-        }
-    }
-
-    /// Returns the number of primitives this field may have.
-    ///
-    /// ```
-    /// use raves_metadata_types::exif::parse_table::{
-    ///     KnownField,
-    ///     PrimitiveCount,
-    /// };
-    ///
-    /// let image_width: KnownField = KnownField::ImageWidth;
-    /// assert_eq!(image_width.count(), PrimitiveCount::Known(1));
-    /// ```
-    pub const fn count(&self) -> PrimitiveCount {
-        use PrimitiveCount as Pc;
-
-        match self {
-            /*
-             *
-             *
-             *  TIFF Rev. 6.0 Attribute List
-             *
-             *
-             */
-            //
-            // image data structure
-            KnownField::ImageWidth | KnownField::ImageLength => Pc::Known(1),
-            KnownField::BitsPerSample => Pc::Known(3),
-            KnownField::Compression
-            | KnownField::PhotometricInterpretation
-            | KnownField::Orientation
-            | KnownField::SamplesPerPixel
-            | KnownField::XResolution
-            | KnownField::YResolution
-            | KnownField::PlanarConfiguration
-            | KnownField::ResolutionUnit => Pc::Known(1),
-            KnownField::YCbCrSubSampling => Pc::Known(2),
-            KnownField::YCbCrPositioning => Pc::Known(1),
-
-            //
-            // recording offset
-            KnownField::StripOffsets => Pc::SpecialHandling,
-            KnownField::RowsPerStrip => Pc::Known(1),
-            KnownField::StripByteCounts => Pc::SpecialHandling,
-            KnownField::JPEGInterchangeFormat | KnownField::JPEGInterchangeFormatLength => {
-                Pc::Known(1)
-            }
-
-            //
-            // image data characteristics
-            KnownField::TransferFunction => Pc::Known(3 * 256),
-            KnownField::WhitePoint => Pc::Known(2),
-            KnownField::PrimaryChromaticities => Pc::Known(6),
-            KnownField::YCbCrCoefficients => Pc::Known(3),
-            KnownField::ReferenceBlackWhite => Pc::Known(6),
-
-            //
-            // other tags
-            KnownField::ImageDescription
-            | KnownField::Make
-            | KnownField::Model
-            | KnownField::Software => Pc::Any,
-            KnownField::DateTime => Pc::Known(20),
-            KnownField::Artist | KnownField::Copyright => Pc::Any,
-        }
     }
 }
 
