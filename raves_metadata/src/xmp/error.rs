@@ -36,7 +36,7 @@ impl core::fmt::Display for XmpError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             XmpError::XmlParseError(e) => {
-                write!(f, "Encountered error while parsing XML. err: {}", e)
+                write!(f, "Encountered error while parsing XML. err: {e}")
             }
 
             XmpError::NoRdfElement => {
