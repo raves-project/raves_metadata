@@ -27,17 +27,19 @@ impl<'file> Png<'file> {
 }
 
 impl<'file> MetadataProvider for Png<'file> {
-    fn iptc(&self) -> Result<Iptc, IptcError> {
+    fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
         todo!()
     }
 
-    fn xmp(&self) -> Result<Xmp, XmpError> {
+    fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
+        let todo_not_all_pngs_have_xmp = ();
+
         let xml: &'file str =
             get_xmp_block(self.file).expect("TODO: add an error variant for this");
 
         let xmp: Xmp = crate::xmp::Xmp::new(xml).expect("TODO: add an error variant for this");
 
-        Ok(xmp)
+        Some(Ok(xmp))
     }
 }
 
@@ -286,7 +288,10 @@ mod tests {
 
         // with that all over, we can actually run the test ;D
         let png: Png = Png::new(&technically_a_png);
-        let xmp: Xmp = png.xmp().expect("get XMP from PNG");
+        let xmp: Xmp = png
+            .xmp()
+            .expect("this PNG has XMP")
+            .expect("get XMP from PNG");
 
         let parsed_xmp = xmp.parse().expect("parse XMP data");
 
