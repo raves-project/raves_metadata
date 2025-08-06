@@ -186,3 +186,270 @@ impl<'file> MetadataProvider for Webp<'file> {
         let todo_impl_exif_for_webp = todo!();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
+
+    use crate::{MetadataProvider, providers::webp::error::WebpCreationError};
+
+    use super::Webp;
+
+    /// There are no "empty" WebP files - the standard requires at least one
+    /// chunk on all kinds.
+    ///
+    /// The
+    #[test]
+    fn empty_webp_should_fail() {
+        logger();
+
+        let minimal_webp: &[u8] = &make_webp_sample(Vec::new());
+
+        // assertion: empty webp should parse alright
+        assert!(
+            matches!(Webp::new(minimal_webp), Err(WebpCreationError::NoChunks)),
+            "shouldn't parse webp files w/ 0 chunks"
+        );
+    }
+
+    /// The parser shouldn't reject "simple" WebP files.
+    ///
+    /// While they don't have metadata, parsing them should result in no work
+    /// done.
+    #[test]
+    fn should_construct_simple_webp() {
+        logger();
+
+        let simple_webp: &[u8] = &make_webp_sample(vec![
+            // note: the `VP8 ` chunk stores image data;
+            //
+            // it's the only chunk in a "simple" WebP.
+            (b"VP8 ", [0_u8].as_slice()),
+        ]);
+
+        assert!(Webp::new(simple_webp).is_ok());
+    }
+
+    /// Extended WebP files should construct fine.
+    #[test]
+    fn extended_webp_should_construct() {
+        logger();
+
+        let vp8x_chunk_data = vp8x(false, false);
+        let bytes = &make_webp_sample(vec![
+            (b"VP8X", vp8x_chunk_data.as_slice()),
+            (b"FAKE", [33_u8; 29].as_slice()),
+            (b"TEST", [1_u8; 2].as_slice()),
+            (b"ONLY", [0_u8; 4].as_slice()),
+        ]);
+
+        assert!(Webp::new(bytes).is_ok());
+    }
+
+    /// Odd chunks shouldn't result in any weird corruption or nonsense.
+    #[test]
+    fn odd_num_of_chunk_bytes_should_construct() {
+        logger();
+
+        // simple
+        {
+            let bytes = &make_webp_sample(vec![(b"FAKE", [0_u8; 11].as_slice())]);
+            assert!(Webp::new(bytes).is_ok());
+        }
+
+        // extended
+        {
+            let vp8x_chunk_data = vp8x(false, false);
+            let bytes = &make_webp_sample(vec![
+                (b"VP8X", vp8x_chunk_data.as_slice()),
+                (b"FAKE", [33_u8; 29].as_slice()),
+            ]);
+
+            assert!(Webp::new(bytes).is_ok());
+        }
+    }
+
+    /// Attempting to grab IPTC for a file should return `None`.
+    ///
+    /// It shouldn't error or anything, though!
+    #[test]
+    fn ensure_iptc_is_unsupported() {
+        logger();
+
+        let simple_webp: &[u8] = &make_webp_sample(vec![(b"VP8 ", [0_u8; 100].as_slice())]);
+        let webp: Webp = Webp::new(simple_webp).unwrap();
+
+        assert!(
+            webp.iptc().is_none(),
+            "iptc is unsupported and should return None"
+        );
+    }
+
+    /// XMP parsing should work fine.
+    #[test]
+    fn check_xmp() {
+        logger();
+
+        const XMP_DATA: &str = r#"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+            <rdf:Description rdf:about="" xmlns:my_ns="https://barretts.club">
+                <my_ns:MyStruct>
+                    <rdf:Description />
+                </my_ns:MyStruct>
+            </rdf:Description>
+        </rdf:RDF>"#;
+
+        // setup the sample
+        let vp8x_chunk_data = vp8x(false, true);
+        let bytes = &make_webp_sample(vec![
+            (b"VP8X", &vp8x_chunk_data),
+            (b"XMP ", XMP_DATA.as_bytes()),
+            (b"VP8 ", &[0x00]),
+        ]);
+
+        // construct webp representation
+        let webp: Webp = Webp::new(bytes).unwrap();
+
+        // construct the xmp
+        let xmp = webp
+            .xmp()
+            .expect("XMP is supported _and_ provided in the file")
+            .expect("the XMP should construct correctly");
+
+        // parse xmp
+        let xmp_doc = xmp.parse().expect("xmp is valid");
+
+        assert_eq!(
+            xmp_doc.values_ref().first().unwrap(),
+            &XmpElement {
+                namespace: "https://barretts.club".into(),
+                prefix: "my_ns".into(),
+                name: "MyStruct".into(),
+                value: XmpValue::Struct(Vec::new()),
+            }
+        );
+    }
+
+    #[test]
+    fn real_sample_image_should_construct() {
+        logger();
+
+        let bytes = include_bytes!("../../../assets/1.webp");
+
+        // construct webp representation
+        let webp: Webp = Webp::new(bytes).unwrap();
+
+        assert_eq!(webp.relevant_chunks, Vec::new());
+    }
+
+    #[test]
+    fn real_sample_image_should_parse() {
+        let bytes = include_bytes!("../../../assets/photopea.webp");
+
+        // construct webp representation
+        let webp: Webp = Webp::new(bytes).unwrap();
+
+        // construct the xmp
+        let xmp = webp
+            .xmp()
+            .expect("XMP is supported _and_ provided in the file")
+            .expect("the XMP should construct correctly");
+
+        // parse xmp
+        let xmp_doc = xmp.parse().expect("xmp is valid");
+
+        // note: this is the same check as one in the `xmp` module
+        assert_eq!(
+            xmp_doc.values_ref().to_vec(),
+            vec![XmpElement {
+                namespace: "http://purl.org/dc/elements/1.1/".into(),
+                prefix: "dc".into(),
+                name: "subject".into(),
+                value: XmpValue::UnorderedArray(vec![
+                    XmpElement {
+                        name: "li".into(),
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("farts".into()))
+                    },
+                    XmpElement {
+                        name: "li".into(),
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("not farts".into()))
+                    },
+                    XmpElement {
+                        name: "li".into(),
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("etc.".into()))
+                    },
+                ])
+            }]
+        );
+    }
+
+    /// helper: init the logger
+    fn logger() {
+        env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .init();
+    }
+
+    /// helper: create the `VP8X` chunk (required for "extended" WebP)
+    fn vp8x(has_exif: bool, has_xmp: bool) -> Vec<u8> {
+        let exif_bit: u8 = match has_exif {
+            true => 0b0000_1000,
+            false => 0b0000_0000,
+        };
+
+        let xmp_bit: u8 = match has_xmp {
+            true => 0b0001_0000,
+            false => 0b0000_0000,
+        };
+
+        #[rustfmt::skip]
+        let bytes = [
+            exif_bit | xmp_bit,
+            0_u8, 0_u8, 0_u8,
+            0_u8, 0_u8, 0_u8, 0_u8, 0_u8, 0_u8,
+        ].to_vec();
+
+        bytes
+    }
+
+    /// helper: build a file to make these tests readable
+    ///
+    /// (trust me; they weren't before)
+    fn make_webp_sample(chunks: Vec<(&[u8; 4], &[u8])>) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        // add the file header
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend([0; 4]); // we'll fill this in just a sec
+        bytes.extend_from_slice(b"WEBP");
+
+        // make each chunk
+        for (chunk_fourcc, chunk_data) in chunks.iter() {
+            // add fourcc directly
+            bytes.extend_from_slice(chunk_fourcc.as_slice());
+
+            // handle chunk data
+            bytes.extend((chunk_data.len() as u32).to_le_bytes()); // len
+            bytes.extend_from_slice(chunk_data); // fr data
+
+            // add an extra padding byte if the size is odd
+            if chunk_data.len() % 2 != 0 {
+                bytes.push(0_u8);
+            }
+        }
+
+        // with all chunks done, we set the file size
+        let total_size_of_chunks: u32 = (bytes.len() as u32) - 8_u32;
+        bytes[4..8].copy_from_slice(&total_size_of_chunks.to_le_bytes());
+
+        bytes
+    }
+}
