@@ -1,3 +1,5 @@
+//! Provides primitive value types for Exif tags.
+
 /// An enumeration of the possible values of a primitive.
 ///
 /// Used in each IFD descriptor.
@@ -54,6 +56,31 @@ impl TryFrom<u16> for PrimitiveTy {
             _ => Err(()),
         }
     }
+}
+
+/// The number of primitives a field should have.
+///
+/// These are used to sanity-check parsed values.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+pub enum PrimitiveCount {
+    /// There are `n` primitives.
+    Known(u32),
+
+    /// The number of primitives is within this range, inclusive.
+    KnownRange { lower: u32, upper: u32 },
+
+    /// This field requires special handling for its count.
+    ///
+    /// For instance, `StripOffsets` has a variable count based on the value
+    /// of `RowsPerStrip`.
+    ///
+    /// So, we can't quite know the count beforehand. It's better to just ask
+    /// the parser to do some special handling for such fields.
+    SpecialHandling,
+
+    /// Any number of primitives.
+    Any,
 }
 
 #[repr(C)]

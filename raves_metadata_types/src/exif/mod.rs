@@ -1,10 +1,15 @@
+//! Exif is a metadata format supported by `raves_metadata`.
+//!
+//! It's embedded into files similarly to other standards.
+
 use crate::exif::{
-    parse_table::KnownField,
     primitives::{Primitive, PrimitiveTy},
+    tags::KnownTag,
 };
 
-pub mod parse_table;
+pub mod ifd;
 pub mod primitives;
+pub mod tags;
 
 /// An image file directory found within Exif metadata.
 ///
@@ -83,7 +88,7 @@ pub enum Endianness {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub enum FieldTag {
-    Known(KnownField),
+    Known(KnownTag),
     Unknown(u16),
 }
 
