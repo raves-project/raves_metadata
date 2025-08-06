@@ -237,6 +237,21 @@ impl KnownTag {
     }
 }
 
+impl TryFrom<(IfdGroup, u16)> for KnownTag {
+    type Error = ();
+
+    fn try_from(value: (IfdGroup, u16)) -> Result<Self, Self::Error> {
+        let (ifd_group, tag_id): (IfdGroup, u16) = value;
+
+        match ifd_group {
+            IfdGroup::_0 => Ifd0Tag::try_from(tag_id).map(KnownTag::Ifd0Tag),
+            IfdGroup::Exif => ExifIfdTag::try_from(tag_id).map(KnownTag::ExifIfdTag),
+            IfdGroup::Gps => GpsIfdTag::try_from(tag_id).map(KnownTag::GpsIfdTag),
+            IfdGroup::Interop => InteropIfdTag::try_from(tag_id).map(KnownTag::InteropIfdTag),
+        }
+    }
+}
+
 /*
  *
  *
