@@ -349,7 +349,7 @@ fn parse_element(element: &Element) -> Option<XmpElement<'_>> {
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::xmp::{XmpElement, XmpValue};
+    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
     use crate::xmp::Xmp;
 
@@ -430,6 +430,67 @@ mod tests {
                 prefix: "my_ns".into(),
                 name: "MyStruct".into(),
                 value: XmpValue::Struct(vec![])
+            }]
+        );
+    }
+
+    /// A sample from Photoshop.
+    ///
+    /// Used as a regression test on `array` types, where `parse` callers may
+    /// accidentally call w/ the inner types instead of the array types.
+    #[test]
+    fn from_photoshop() {
+        _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+
+        const RAW_XML: &str = r#"<?xpacket begin="∩╗┐" id="W5M0MpCehiHzreSzNTczkc9d"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c145 79.163499, 2018/08/13-16:40:22">
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+        <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:tiff="http://ns.adobe.com/tiff/1.0/" xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#" xmlns:stRef="http://ns.adobe.com/xap/1.0/sType/ResourceRef#">
+                <dc:subject><rdf:Bag>
+                        <rdf:li>farts</rdf:li>
+                        <rdf:li>not farts</rdf:li>
+                        <rdf:li>etc.</rdf:li>
+                </rdf:Bag></dc:subject>
+        </rdf:Description>
+        </rdf:RDF>
+        </x:xmpmeta>
+        <?xpacket end="w"?>"#;
+
+        let xmp: Xmp = Xmp::new(RAW_XML).expect("`xmltree` should parse the XML correctly");
+
+        assert_eq!(
+            xmp.parse()
+                .expect("`raves_metadata` shouldn't choke on description with no `rdf:about`")
+                .0,
+            vec![XmpElement {
+                namespace: "http://purl.org/dc/elements/1.1/".into(),
+                prefix: "dc".into(),
+                name: "subject".into(),
+                value: XmpValue::UnorderedArray(vec![
+                    XmpElement {
+                        name: "li".into(),
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("farts".into()))
+                    },
+                    XmpElement {
+                        name: "li".into(),
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("not farts".into()))
+                    },
+                    XmpElement {
+                        name: "li".into(),
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        value: XmpValue::Simple(XmpPrimitive::Text("etc.".into()))
+                    },
+                ])
             }]
         );
     }
