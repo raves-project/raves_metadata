@@ -12,3 +12,4 @@
 
 // pub mod bmff;
 pub mod png;
+pub mod webp;
