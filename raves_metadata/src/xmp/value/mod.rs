@@ -77,9 +77,9 @@ impl XmpElementExt for Element {
             //
             // handle each of those by grabbing the list entries, then parsing
             // each entry according to its `ty`
-            Kind::UnorderedArray(ty) => value_unordered_array(self, Some(ty)),
-            Kind::OrderedArray(ty) => value_ordered_array(self, Some(ty)),
-            Kind::Alternatives(ty) => value_alternatives(self, Some(ty)),
+            Kind::UnorderedArray(_) => value_unordered_array(self, Some(schema)),
+            Kind::OrderedArray(_) => value_ordered_array(self, Some(schema)),
+            Kind::Alternatives(_) => value_alternatives(self, Some(schema)),
         }
     }
 

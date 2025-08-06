@@ -332,8 +332,8 @@ fn parse_element(element: &Element) -> Option<XmpElement<'_>> {
             .value_with_schema(schema)
             .inspect_err(|e| {
                 log::error!(
-                    "Failed to parse element with schema! \
-                - err: {e} \
+                    "Failed to parse element with schema! \n\
+                - err: \n{e} \n\n\
                 - schema: {schema:#?}"
                 )
             })
