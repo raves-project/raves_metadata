@@ -10,6 +10,6 @@
 //! allows a consistent interface for obtaining metadata from different media
 //! sources.
 
-// pub mod bmff;
 pub mod png;
+mod shared;
 pub mod webp;
