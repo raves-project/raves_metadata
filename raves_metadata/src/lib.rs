@@ -53,9 +53,9 @@ pub mod xmp;
 pub trait MetadataProvider {
     /// Parses `self`, a media source, for its IPTC block(s) and returns them
     /// combined into one list of (key, value) pairs.
-    fn iptc(&self) -> Result<Iptc, IptcError>;
+    fn iptc(&self) -> Option<Result<Iptc, IptcError>>;
 
     // fn exif(&self) -> Result<Exif, ExifError>;
 
-    fn xmp(&self) -> Result<Xmp, XmpError>;
+    fn xmp(&self) -> Option<Result<Xmp, XmpError>>;
 }
