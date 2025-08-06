@@ -152,3 +152,83 @@ pub enum Mp4ConstructionError {
     /// Its filetype info denoted that it's something else:
     NotAnMp4([u8; 4]),
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
+
+    use crate::{
+        MetadataProvider,
+        providers::mp4::Mp4,
+        xmp::{Xmp, XmpDocument},
+    };
+
+    #[test]
+    fn parse_real_mp4() {
+        logger();
+
+        let bytes = include_bytes!("../../assets/01_simple_with_aves_tags.mp4");
+
+        let mp4: Mp4 = Mp4::new(bytes).expect("parsing mp4 should work");
+
+        let xmp: Xmp = mp4
+            .xmp()
+            .expect("this file has XMP embedded")
+            .expect("should find the XMP data");
+
+        let xmp_document: XmpDocument = xmp.parse().expect("parse XMP");
+
+        let common_array_element: XmpElement = XmpElement {
+            namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+            prefix: "rdf".into(),
+            name: "li".into(),
+            value: XmpValue::Simple(XmpPrimitive::Text("".into())),
+        };
+
+        let expected = Vec::from([
+            XmpElement {
+                namespace: "http://ns.adobe.com/xap/1.0/".into(),
+                prefix: "xmp".into(),
+                name: "MetadataDate".into(),
+                value: XmpValue::Simple(XmpPrimitive::Date("2025-08-05T22:08:44-05:00".into())),
+            },
+            XmpElement {
+                namespace: "http://ns.adobe.com/xap/1.0/".into(),
+                prefix: "xmp".into(),
+                name: "ModifyDate".into(),
+                value: XmpValue::Simple(XmpPrimitive::Date("2025-08-05T22:08:44-05:00".into())),
+            },
+            XmpElement {
+                namespace: "http://purl.org/dc/elements/1.1/".into(),
+                prefix: "dc".into(),
+                name: "subject".into(),
+                value: XmpValue::UnorderedArray(
+                    [1, 2, 3]
+                        .into_iter()
+                        .map(|v| {
+                            let mut c = common_array_element.clone();
+                            c.value =
+                                XmpValue::Simple(XmpPrimitive::Text(format!("tag {v}").into()));
+                            c
+                        })
+                        .collect(),
+                ),
+            },
+        ]);
+
+        let mut got = xmp_document.values_ref().to_vec();
+        got.sort_by_key(|a| a.name.clone());
+
+        assert_eq!(got, expected);
+    }
+
+    /// helper: init the logger
+    fn logger() {
+        env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .init();
+    }
+}
