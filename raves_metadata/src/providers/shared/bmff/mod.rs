@@ -107,8 +107,8 @@ impl BoxHeader {
     /// left. We just know to parse the rest of the slice.
     pub fn payload_len(&self) -> Option<u64> {
         match self.box_size {
-            BoxSize::Small(n) => Some((n - self.header_len as u32) as u64),
-            BoxSize::Large(n) => Some(n - self.header_len as u64),
+            BoxSize::Small(n) => Some((n.saturating_sub(self.header_len as u32)) as u64),
+            BoxSize::Large(n) => Some(n.saturating_sub(self.header_len as u64)),
             BoxSize::Eof => None,
         }
     }
