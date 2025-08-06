@@ -1,4 +1,4 @@
-//! This module contains an IPTC parser for members of the ISO base media file
+//! This module contains helpers for members of the ISO base media file
 //! format (ISOBMFF), or just "BMFF."
 //!
 //! BMFF contains information used for "timed" presentation of media data.[^1]
@@ -19,7 +19,7 @@ use winnow::{
 /// the file is starting from the beginning.
 ///
 /// Note that the input is mutated - skip `size - taken_bytes`.
-fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
+pub fn parse_header(input: &mut &[u8]) -> ModalResult<BoxHeader, ContextError> {
     // we're going to track the length of our box as we parse.
     //
     // the amount of bytes we took is given in the `BoxHeader`
@@ -28,8 +28,8 @@ fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
     // grab the raw "size" and "type" from the input.
     //
     // we parse these more below...
-    let raw_size: u32 = be_u32.parse_next(&mut input)?;
-    let raw_type: u32 = be_u32.parse_next(&mut input)?;
+    let raw_size: u32 = be_u32.parse_next(input)?;
+    let raw_type: u32 = be_u32.parse_next(input)?;
 
     // parse the size into something more usable
     let size: BoxSize = match raw_size {
@@ -37,7 +37,7 @@ fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
         //
         // and, well, we've already parsed the first two parts of this header.
         // let's also take the `large_size`, which comes next. it's a `u64`...
-        1_u32 => BoxSize::Large(be_u64.parse_next(&mut input)?),
+        1_u32 => BoxSize::Large(be_u64.parse_next(input)?),
 
         // special case: when it's zero, read to EOF (this is the end!)
         0_u32 => BoxSize::Eof,
@@ -54,9 +54,8 @@ fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
         // we do have a UUID! keep reading for the full string...
         CASE_UUID => {
             const LEN: usize = 16_usize;
-            let chars: [u8; LEN] =
-                TryInto::<[u8; LEN]>::try_into(take(LEN).parse_next(&mut input)?)
-                    .map_err(|e| unreachable!("we always get 16 characters. but err: {e}"))?;
+            let chars: [u8; LEN] = TryInto::<[u8; LEN]>::try_into(take(LEN).parse_next(input)?)
+                .map_err(|e| unreachable!("we always get 16 characters. but err: {e}"))?;
 
             BoxType::Uuid(chars)
         }
@@ -89,7 +88,7 @@ fn parse_header(mut input: &[u8]) -> ModalResult<BoxHeader, ContextError> {
 /// - how large it is
 /// - and, optionally, a UUID
 #[derive(Debug)]
-struct BoxHeader {
+pub struct BoxHeader {
     /// How long the header is.
     pub header_len: u8,
 
@@ -116,7 +115,7 @@ impl BoxHeader {
 
 /// A BMFF box's type.
 #[derive(Debug)]
-enum BoxType {
+pub enum BoxType {
     /// Uses a short ID. No UUID.
     Id([u8; 4]),
 
@@ -127,7 +126,7 @@ enum BoxType {
 
 /// The size of a box.
 #[derive(Debug)]
-enum BoxSize {
+pub enum BoxSize {
     /// The box is small. u32::MAX is its maximum length.
     Small(u32),
 
