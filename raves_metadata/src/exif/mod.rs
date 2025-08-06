@@ -14,18 +14,24 @@
 //! they're provided for folks who need them.
 
 pub use raves_metadata_types::exif::{Endianness, Field, FieldData, primitives::*};
-use raves_metadata_types::exif::{FieldTag, parse_table::KnownField};
 
 use winnow::{
     Parser as _, Stateful,
-    binary::{Endianness as WinnowEndianness, i32, u8, u16, u32},
+    binary::{Endianness as WinnowEndianness, u16, u32},
     error::EmptyError,
     token::take,
 };
 
-use crate::exif::error::{ExifFatalError, ExifFatalResult, ExifFieldError, ExifFieldResult};
+use self::{
+    error::{ExifFatalError, ExifFatalResult},
+    ifd::Ifd,
+    ifd::parse_ifd,
+};
+use raves_metadata_types::exif::ifd::IfdGroup;
 
 pub mod error;
+mod ifd;
+mod value;
 
 /// Extracted information from an Exif metadata block.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
@@ -63,6 +69,7 @@ impl Exif {
             state: State {
                 endianness: &winnow_endianness,
                 blob,
+                current_ifd: IfdGroup::_0, // we always start with IFD 0
             },
         };
 
@@ -106,17 +113,6 @@ impl Exif {
 
         Ok(Self { endianness, ifds })
     }
-}
-
-/// An image file directory found within Exif metadata.
-///
-/// These contain a number of fields - at least one - and directions to the
-/// next IFD.
-#[repr(C)]
-#[derive(Clone, Debug, Hash, PartialEq, PartialOrd)]
-pub struct Ifd {
-    /// A list of fields on this IFD.
-    pub fields: Vec<Result<Field, ExifFieldError>>,
 }
 
 /// Finds the endianness of the Exif blob.
@@ -171,6 +167,7 @@ fn parse_blob_endianness(input: &mut &[u8]) -> ExifFatalResult<Endianness> {
 
 #[derive(Debug)]
 struct State<'a> {
+    current_ifd: IfdGroup,
     endianness: &'a WinnowEndianness,
     blob: &'a [u8],
 }
@@ -229,308 +226,19 @@ fn parse_tiff_header_offset(input: &mut Stream) -> ExifFatalResult<u32> {
 /// A pointer in the blob specifying the next IFD, if any.
 type NextIfdPointer = Option<u32>;
 
-/// Parses out an entire IFD.
-fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalError> {
-    let endianness = *input.state.endianness;
-
-    let entry_count: u16 = u16(endianness).parse_next(input).map_err(|_: EmptyError| {
-        log::error!("Couldn't find count on IFD - ran out of data!");
-        ExifFatalError::IfdNoEntryCount
-    })?;
-
-    if entry_count == 0 {
-        log::error!("IFD reported itself as having zero fields! This is fatal to parsing.");
-        return Err(ExifFatalError::IfdHadZeroFields);
-    }
-
-    log::trace!("Parsing `{entry_count}` fields...");
-    let ifd = Ifd {
-        fields: (0..entry_count).map(|_| parse_value(input)).collect(),
-    };
-    log::trace!("Completed field parsing!");
-
-    let next_ifd_location = {
-        let raw_location: u32 = u32(endianness).parse_next(input).map_err(|_: EmptyError| {
-            log::error!("IFD didn't contain a pointer to the next IFD!");
-            ExifFatalError::IfdNoPointer
-        })?;
-
-        if raw_location == 0_u32 {
-            log::trace!("There won't be a next IFD.");
-            None
-        } else {
-            log::trace!("Another IFD was detected! index: `{raw_location}`");
-            Some(raw_location)
-        }
-    };
-
-    Ok((ifd, next_ifd_location))
-}
-
-/// Parses out one value from an IFD.
-fn parse_value(input: &mut Stream) -> ExifFieldResult {
-    let endianness = input.state.endianness;
-
-    // grab tag (2 bytes)
-    let tag: FieldTag = {
-        let raw_tag: u16 = u16(*endianness)
-            .parse_next(&mut input.input)
-            .map_err(|_: EmptyError| ExifFieldError::FieldNoTag)?;
-
-        KnownField::try_from(raw_tag)
-            .map(FieldTag::Known)
-            .unwrap_or(FieldTag::Unknown(raw_tag))
-    };
-
-    // type (2 bytes)
-    let ty: PrimitiveTy = {
-        // grab the raw value
-        let raw_ty: u16 = u16(*endianness)
-            .parse_next(&mut input.input)
-            .map_err(|_: EmptyError| ExifFieldError::FieldNoTy)?;
-
-        // make it into a type repr enum
-        PrimitiveTy::try_from(raw_ty).map_err(|_| {
-            log::error!("Encountered unknown field type: `{raw_ty}`");
-            ExifFieldError::FieldUnknownType { got: raw_ty }
-        })?
-    };
-
-    // count (4 bytes)
-    let count: u32 = u32(*endianness)
-        .parse_next(&mut input.input)
-        .map_err(|_: EmptyError| ExifFieldError::FieldNoCount)?;
-
-    // grab the value or offset (4 bytes. we'll handle deciding in a sec)
-    let value_or_offset: u32 = u32(*endianness)
-        .parse_next(&mut input.input)
-        .map_err(|_: EmptyError| ExifFieldError::FieldNoOffsetOrValue)?;
-
-    log::trace!(
-        "(field info... tag: {tag}, ty: {ty:?}, count: {count}, value or offset: {value_or_offset})"
-    );
-
-    // warn if the real type isn't an expected type
-    if let FieldTag::Known(known_tag) = tag
-        && !known_tag.types().contains(&ty)
-    {
-        log::warn!(
-            "Field `{known_tag:?}` had a type mismatch! \
-            Continuing parsing with wrong type anyway... \
-            got: `{ty:?}`, \
-            expected: {:?}",
-            known_tag.types()
-        );
-    }
-
-    // TODO: check for Count::SpecialHandling
-
-    // check how large the stored data is
-    let total_size: u32 = ty.size_bytes() as u32 * count;
-    log::trace!("total size for field: `{total_size}`");
-
-    // figure out what `value_or_offset` really is
-    let is_offset: bool = total_size > 4_u32;
-    log::trace!("field has offset instead of inline data..? `{is_offset}`");
-    let value: [u8; 4] = match endianness {
-        WinnowEndianness::Big => value_or_offset.to_be_bytes(),
-        WinnowEndianness::Little => value_or_offset.to_le_bytes(),
-        WinnowEndianness::Native => unreachable!("we never use this variant"),
-    };
-
-    // if the value is an offset, apply the offset and use the shifted blob as
-    // the buffer. (offsets are relative to the beginning of the blob)
-    //
-    // if it's not, just use our value and leave :)
-    let data: &[u8] = match is_offset {
-        true => {
-            log::trace!("Using reference to blob for value's absolute offset.");
-            let blob_max_index: u32 = input.state.blob.len().saturating_sub(1) as u32;
-
-            if value_or_offset > blob_max_index {
-                log::error!(
-                    "Field said its data is stored outside the blob! \
-                    That's not possible. Can't continue parsing this field. \
-                    offset: `{value_or_offset}`, blob's maximum index: `{blob_max_index}`"
-                );
-                return Err(ExifFieldError::OffsetTooFar {
-                    offset: value_or_offset,
-                });
-            }
-
-            // use the fr input as our value input
-            input
-                .state
-                .blob
-                .get(value_or_offset as usize..)
-                .ok_or_else(|| {
-                    log::error!("Attempted to offset too far!");
-                    ExifFieldError::OffsetTooFar {
-                        offset: value_or_offset,
-                    }
-                })?
-        }
-
-        false => {
-            log::trace!("No value offset detected.");
-            let mut sli = value.as_slice(); // it's just a value; send it over as a slice
-
-            // account for big-endian values smaller than 4 bytes.
-            //
-            // in essence, we need to scoot the bits we care about over to the
-            // other side. otherwise, we're reading them in the right order,
-            // but with padding at the beginning :(
-            if *endianness == WinnowEndianness::Big && total_size < 4 {
-                sli = &sli[4 - total_size as usize..];
-            }
-
-            sli
-        }
-    };
-
-    // construct the stateful stream containing the field's data
-    let prim_stream = &mut PrimitiveStream {
-        input: data,
-        state: PrimitiveState {
-            tag: &tag,
-            endianness,
-            count,
-            ty: &ty,
-        },
-    };
-
-    // parse the data for use in the field
-    let field_data = match count {
-        // if the count is zero, we won't perform any work at all
-        0_u32 => {
-            log::trace!("There are no stored primitives in this field. Returning early!");
-            FieldData::None(ty)
-        }
-
-        // when we just have one, parse it alone and return immediately
-        1_u32 => {
-            log::trace!("Asked to only parse one primitive.");
-            FieldData::Primitive(parse_primitive(prim_stream)?)
-        }
-
-        // other counts are higher; we'll make a list
-        _ => {
-            log::trace!("Asked to parse list of primitives. value ct: `{count}`");
-            FieldData::List {
-                list: parse_primitive_list(prim_stream)?,
-                ty,
-            }
-        }
-    };
-
-    // return it wrapped in a field
-    Ok(Field {
-        tag,
-        data: field_data,
-    })
-}
-
-#[derive(Debug)]
-struct PrimitiveState<'s> {
-    tag: &'s FieldTag,
-    endianness: &'s WinnowEndianness,
-    count: u32,
-    ty: &'s PrimitiveTy,
-}
-type PrimitiveStream<'s> = Stateful<&'s [u8], PrimitiveState<'s>>;
-
-/// Parses a list of primitives.
-fn parse_primitive_list(input: &mut PrimitiveStream) -> Result<Vec<Primitive>, ExifFieldError> {
-    let mut v: Vec<Primitive> = Vec::with_capacity(input.state.count as usize);
-
-    for i in 0..input.state.count {
-        v.push(parse_primitive.parse_next(input).inspect_err(|e| {
-            log::error!(
-                "Failed to create primitive #{i} on {}. err: {e}",
-                input.state.tag
-            )
-        })?);
-    }
-
-    Ok(v)
-}
-
-/// Parses a single primitive.
-fn parse_primitive(input: &mut PrimitiveStream) -> Result<Primitive, ExifFieldError> {
-    let endianness = input.state.endianness;
-    let ty = *input.state.ty;
-
-    match ty {
-        PrimitiveTy::Byte => Ok(Primitive::Byte(
-            u8.parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-
-        PrimitiveTy::Ascii => Ok(Primitive::Ascii(
-            u8.parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-
-        PrimitiveTy::Short => Ok(Primitive::Short(
-            u16(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-
-        PrimitiveTy::Long => Ok(Primitive::Long(
-            u32(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-
-        PrimitiveTy::Rational => Ok(Primitive::Rational(Rational {
-            numerator: u32(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-            denominator: u32(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        })),
-
-        PrimitiveTy::Undefined => Ok(Primitive::Undefined(
-            u8.parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-
-        PrimitiveTy::SLong => Ok(Primitive::SLong(
-            i32(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-
-        PrimitiveTy::SRational => Ok(Primitive::Rational(Rational {
-            numerator: u32(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-            denominator: u32(*endianness)
-                .parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        })),
-
-        PrimitiveTy::Utf8 => Ok(Primitive::Utf8(
-            u8.parse_next(input)
-                .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-        )),
-    }
-}
 #[cfg(test)]
 mod tests {
     use raves_metadata_types::exif::{
         Endianness, Field, FieldData, FieldTag,
-        parse_table::{KnownField, PrimitiveCount},
-        primitives::{Primitive, PrimitiveTy},
+        ifd::IfdGroup,
+        primitives::{Primitive, PrimitiveCount, PrimitiveTy},
+        tags::{Ifd0Tag, KnownTag},
     };
     use winnow::binary::Endianness as WinnowEndianness;
 
     use crate::exif::{
-        Exif, Ifd, State, Stream,
-        error::{ExifFatalError, ExifFieldError},
-        parse_blob_endianness, parse_tiff_header_offset, parse_tiff_magic_number,
+        Exif, Ifd, error::ExifFatalError, parse_blob_endianness, parse_tiff_header_offset,
+        parse_tiff_magic_number,
     };
 
     /// Checks that we're able to parse endianness properly.
@@ -583,6 +291,7 @@ mod tests {
         assert_eq!(
             parse_tiff_magic_number(&mut super::Stream {
                 state: super::State {
+                    current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
                     blob: backing_bytes.as_slice()
                 },
@@ -619,6 +328,7 @@ mod tests {
 
         let stream = &mut super::Stream {
             state: super::State {
+                current_ifd: IfdGroup::_0,
                 endianness: &WinnowEndianness::Little,
                 blob: backing_bytes.as_slice(),
             },
@@ -635,6 +345,7 @@ mod tests {
         assert_eq!(
             parse_tiff_header_offset(&mut super::Stream {
                 state: super::State {
+                    current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
                     blob: backing_bytes.as_slice()
                 },
@@ -645,78 +356,13 @@ mod tests {
         assert_eq!(
             parse_tiff_header_offset(&mut super::Stream {
                 state: super::State {
+                    current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
                     blob: backing_bytes.as_slice()
                 },
                 input: 0_u32.to_le_bytes().as_slice(),
             }),
             Err(ExifFatalError::HeaderOffsetBeforeHeader),
-        );
-    }
-
-    /// Unknown types should be rejected.
-    #[test]
-    fn unknown_type() {
-        _ = env_logger::builder()
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
-
-        let mut backing_bytes = Vec::new();
-        backing_bytes.extend_from_slice(0_u16.to_le_bytes().as_slice()); // field tag id
-        backing_bytes.extend_from_slice(0_u16.to_le_bytes().as_slice()); // field type
-        backing_bytes.extend_from_slice(1_u32.to_le_bytes().as_slice()); // field count
-        backing_bytes.extend_from_slice(0_u32.to_le_bytes().as_slice()); // data
-
-        assert_eq!(
-            super::parse_value(&mut Stream {
-                input: &backing_bytes,
-                state: State {
-                    endianness: &WinnowEndianness::Little,
-                    blob: &backing_bytes,
-                }
-            }),
-            Err(ExifFieldError::FieldUnknownType { got: 0_u16 })
-        );
-    }
-
-    /// We should accept a long, unknown field.
-    #[test]
-    fn long_field() {
-        _ = env_logger::builder()
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
-
-        let mut backing_bytes = Vec::new();
-        backing_bytes.extend_from_slice(666_u16.to_le_bytes().as_slice()); // field tag id
-        backing_bytes.extend_from_slice(1_u16.to_le_bytes().as_slice()); // field type
-        backing_bytes.extend_from_slice(300_u32.to_le_bytes().as_slice()); // field count
-        backing_bytes.extend_from_slice(
-            (backing_bytes.len() as u32 + 20_u32)
-                .to_le_bytes()
-                .as_slice(),
-        ); // "the data is in 20 more bytes, including me"
-        backing_bytes.extend_from_slice([0_u8; 16].as_slice()); // 16 bytes of padding
-        backing_bytes.extend_from_slice([61_u8; 300].as_slice()); // field data
-
-        assert_eq!(
-            super::parse_value(&mut Stream {
-                input: &backing_bytes,
-                state: State {
-                    endianness: &WinnowEndianness::Little,
-                    blob: &backing_bytes,
-                }
-            }),
-            Ok(Field {
-                tag: FieldTag::Unknown(666_u16),
-                data: FieldData::List {
-                    list: [Primitive::Byte(61_u8); 300].into(),
-                    ty: PrimitiveTy::Byte
-                }
-            })
         );
     }
 
@@ -738,7 +384,12 @@ mod tests {
         backing_bytes.extend_from_slice(1_u16.to_le_bytes().as_slice());
 
         // make an IFD entry
-        backing_bytes.extend_from_slice(KnownField::ImageWidth.tag_id().to_le_bytes().as_slice());
+        backing_bytes.extend_from_slice(
+            KnownTag::Ifd0Tag(Ifd0Tag::ImageWidth)
+                .tag_id()
+                .to_le_bytes()
+                .as_slice(),
+        );
         backing_bytes.extend_from_slice(3_u16.to_le_bytes().as_slice());
         backing_bytes.extend_from_slice(1_u32.to_le_bytes().as_slice());
         backing_bytes.extend_from_slice(1920_u16.to_le_bytes().as_slice());
@@ -761,7 +412,7 @@ mod tests {
         // check that it's right
         assert_eq!(
             field.tag,
-            FieldTag::Known(KnownField::ImageWidth),
+            FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageWidth)),
             "field tag"
         );
         assert_eq!(
@@ -832,11 +483,21 @@ mod tests {
 
         // the first IFD will have width + height
         backing_bytes.extend_from_slice(2_u16.to_be_bytes().as_slice()); // two fields
-        backing_bytes.extend_from_slice(KnownField::ImageWidth.tag_id().to_be_bytes().as_slice()); // f1 id
+        backing_bytes.extend_from_slice(
+            KnownTag::Ifd0Tag(Ifd0Tag::ImageWidth)
+                .tag_id()
+                .to_be_bytes()
+                .as_slice(),
+        ); // f1 id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f1 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f1 ct
         backing_bytes.extend_from_slice(1920_u32.to_be_bytes().as_slice()); // f1 val
-        backing_bytes.extend_from_slice(KnownField::ImageLength.tag_id().to_be_bytes().as_slice()); // f2 id
+        backing_bytes.extend_from_slice(
+            KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)
+                .tag_id()
+                .to_be_bytes()
+                .as_slice(),
+        ); // f2 id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f2 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f2 ct
         backing_bytes.extend_from_slice(1080_u32.to_be_bytes().as_slice()); // f2 val
@@ -849,19 +510,20 @@ mod tests {
         // IFD #2 gets one veeeery long field
         backing_bytes.extend_from_slice(1_u16.to_be_bytes().as_slice()); // 1 field
         backing_bytes.extend_from_slice(
-            KnownField::TransferFunction
+            KnownTag::Ifd0Tag(Ifd0Tag::TransferFunction)
                 .tag_id()
                 .to_be_bytes()
                 .as_slice(),
         ); // f1 tag
         backing_bytes.extend_from_slice(
-            (KnownField::TransferFunction.types()[0] as u16)
+            (KnownTag::Ifd0Tag(Ifd0Tag::TransferFunction).types()[0] as u16)
                 .to_be_bytes()
                 .as_slice(),
         ); // f1 ty
         backing_bytes.extend_from_slice(
             {
-                let PrimitiveCount::Known(c) = KnownField::TransferFunction.count() else {
+                let PrimitiveCount::Known(c) = KnownTag::Ifd0Tag(Ifd0Tag::TransferFunction).count()
+                else {
                     panic!("wrong count");
                 };
                 c
@@ -884,11 +546,21 @@ mod tests {
 
         // IFD #3
         backing_bytes.extend_from_slice(2_u16.to_be_bytes().as_slice()); // two fields
-        backing_bytes.extend_from_slice(KnownField::ImageWidth.tag_id().to_be_bytes().as_slice()); // f1 tag id
+        backing_bytes.extend_from_slice(
+            KnownTag::Ifd0Tag(Ifd0Tag::ImageWidth)
+                .tag_id()
+                .to_be_bytes()
+                .as_slice(),
+        ); // f1 tag id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f1 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f1 count
         backing_bytes.extend_from_slice(1920_u32.to_be_bytes().as_slice()); // f1 data
-        backing_bytes.extend_from_slice(KnownField::ImageLength.tag_id().to_be_bytes().as_slice()); // f2 tag id
+        backing_bytes.extend_from_slice(
+            KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)
+                .tag_id()
+                .to_be_bytes()
+                .as_slice(),
+        ); // f2 tag id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f2 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f2 count
         backing_bytes.extend_from_slice(1080_u32.to_be_bytes().as_slice()); // f2 data
@@ -916,18 +588,18 @@ mod tests {
                     Ifd {
                         fields: vec![
                             Ok(Field {
-                                tag: FieldTag::Known(KnownField::ImageWidth),
+                                tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageWidth)),
                                 data: FieldData::Primitive(Primitive::Short(1920)),
                             }),
                             Ok(Field {
-                                tag: FieldTag::Known(KnownField::ImageLength),
+                                tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)),
                                 data: FieldData::Primitive(Primitive::Short(1080)),
                             })
                         ]
                     },
                     Ifd {
                         fields: vec![Ok(Field {
-                            tag: FieldTag::Known(KnownField::TransferFunction),
+                            tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::TransferFunction)),
                             data: FieldData::List {
                                 list: [Primitive::Short((99_u16 << 8) | 99_u16); (3 * 256_usize)]
                                     .into(),
@@ -938,11 +610,11 @@ mod tests {
                     Ifd {
                         fields: vec![
                             Ok(Field {
-                                tag: FieldTag::Known(KnownField::ImageWidth),
+                                tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageWidth)),
                                 data: FieldData::Primitive(Primitive::Short(1920)),
                             }),
                             Ok(Field {
-                                tag: FieldTag::Known(KnownField::ImageLength),
+                                tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)),
                                 data: FieldData::Primitive(Primitive::Short(1080)),
                             })
                         ]
