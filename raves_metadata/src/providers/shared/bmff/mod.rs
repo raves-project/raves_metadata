@@ -12,6 +12,11 @@ use winnow::{
     token::take,
 };
 
+/// The box UUID used for XMP.
+pub const XMP_UUID: [u8; 16] = [
+    0xBE, 0x7A, 0xCF, 0xCB, 0x97, 0xA9, 0x42, 0xE8, 0x9C, 0x71, 0x99, 0x94, 0x91, 0xE3, 0xAF, 0xAC,
+];
+
 /// Finds the next header in the file and parses it out.
 ///
 /// This function assumes the byte slice starts at a header. This means you
