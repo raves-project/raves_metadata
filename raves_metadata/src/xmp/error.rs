@@ -18,6 +18,11 @@ use std::sync::Arc;
 /// This is an error that happened while we were parsing XMP.
 #[derive(Clone, Debug)]
 pub enum XmpError {
+    /// The given data was not UTF-8.
+    ///
+    /// Data in XMP is required to be represented in UTF-8.
+    NotUtf8,
+
     /// `xmltree` failed to parse the XML.
     XmlParseError(
         // note: `Arc` allows us to impl `Clone`
@@ -35,6 +40,8 @@ pub enum XmpError {
 impl core::fmt::Display for XmpError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            XmpError::NotUtf8 => f.write_str("The provided XMP data was invalid. It wasn't UTF-8."),
+
             XmpError::XmlParseError(e) => {
                 write!(f, "Encountered error while parsing XML. err: {e}")
             }
@@ -55,7 +62,7 @@ impl core::error::Error for XmpError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             XmpError::XmlParseError(e) => Some(e.as_ref()),
-            XmpError::NoRdfElement | XmpError::NoDescriptionElements => None,
+            XmpError::NoRdfElement | XmpError::NoDescriptionElements | XmpError::NotUtf8 => None,
         }
     }
 }
@@ -281,8 +288,8 @@ impl core::fmt::Display for XmpParsingError<'_> {
             } => write!(
                 f,
                 "List-like array `{element_name}` had a weird schema - it \
-                wasn't for an array. \
-                    - schema: {weird_schema:#?}",
+                wasn't for an array. \n\
+- schema: {weird_schema:?}",
             ),
             //
             //
