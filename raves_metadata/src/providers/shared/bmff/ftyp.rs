@@ -54,3 +54,28 @@ fn parse_fourcc(input: &mut &[u8]) -> Result<[u8; 4], ()> {
         .map_err(|_| ())
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::providers::shared::bmff::ftyp::{FtypBox, parse_fourcc};
+
+    #[test]
+    fn fourcc_should_parse() {
+        assert_eq!(
+            parse_fourcc(&mut b"1234".as_slice()),
+            Ok([b'1', b'2', b'3', b'4'])
+        );
+    }
+
+    #[test]
+    fn ftyp_box_should_parse() {
+        let mut bytes = Vec::new();
+
+        bytes.extend_from_slice(&20_u32.to_be_bytes()); // size
+        bytes.extend_from_slice(b"ftyp"); // ty
+        bytes.extend_from_slice(b"isom"); // brand
+        bytes.extend_from_slice(&1_u32.to_be_bytes()); // minor ver.
+        bytes.extend_from_slice(b"isom"); // compat. brands
+
+        assert!(FtypBox::new(&mut bytes.as_slice()).is_some());
+    }
+}
