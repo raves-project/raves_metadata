@@ -233,7 +233,7 @@ mod tests {
     use raves_metadata_types::exif::{
         Endianness, Field, FieldData, FieldTag,
         ifd::IfdGroup,
-        primitives::{Primitive, PrimitiveCount, PrimitiveTy},
+        primitives::{Primitive, PrimitiveCount, PrimitiveTy, Rational},
         tags::{Ifd0Tag, KnownTag},
     };
     use winnow::binary::Endianness as WinnowEndianness;
@@ -631,5 +631,14 @@ mod tests {
                 ]
             }
         )
+    }
+    /// helper: init logging
+    fn logger() {
+        _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
     }
 }
