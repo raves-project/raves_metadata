@@ -208,10 +208,18 @@ fn find_chunk<'vec_ref, 'file: 'vec_ref>(
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
+    use raves_metadata_types::{
+        exif::{
+            Endianness, Field, FieldData, FieldTag,
+            primitives::{Primitive, PrimitiveTy, Rational},
+            tags::{Ifd0Tag, KnownTag},
+        },
+        xmp::{XmpElement, XmpPrimitive, XmpValue},
+    };
 
     use crate::{
         MetadataProvider,
+        exif::{Exif, Ifd},
         providers::webp::{chunk::RiffChunk, error::WebpCreationError, find_chunk},
     };
 
@@ -407,6 +415,57 @@ mod tests {
                     },
                 ])
             }]
+        );
+    }
+
+    #[test]
+    fn should_find_exif_in_real_sample_image() {
+        logger();
+
+        let file = include_bytes!("../../../assets/providers/webp/RIFF.webp");
+        let webp: Webp = Webp::new(file).unwrap();
+
+        let exif: Exif = webp.exif().expect("file has exif").expect("exif is valid");
+
+        assert_eq!(
+            exif,
+            Exif {
+                endianness: Endianness::Big,
+                ifds: vec![Ifd {
+                    fields: vec![
+                        Ok(Field {
+                            tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::XResolution)),
+                            data: FieldData::Primitive(Primitive::Rational(Rational {
+                                numerator: 72,
+                                denominator: 1
+                            })),
+                        }),
+                        Ok(Field {
+                            tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::YResolution)),
+                            data: FieldData::Primitive(Primitive::Rational(Rational {
+                                numerator: 72,
+                                denominator: 1
+                            })),
+                        }),
+                        Ok(Field {
+                            tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ResolutionUnit)),
+                            data: FieldData::Primitive(Primitive::Short(2)),
+                        }),
+                        Ok(Field {
+                            tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::Artist)),
+                            data: FieldData::List {
+                                list: b"me\0".map(Primitive::Ascii).into(),
+                                ty: PrimitiveTy::Ascii,
+                            },
+                        }),
+                        Ok(Field {
+                            tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::YCbCrPositioning)),
+                            data: FieldData::Primitive(Primitive::Short(1)),
+                        }),
+                    ],
+                    sub_ifds: Vec::new(),
+                }]
+            }
         );
     }
 
