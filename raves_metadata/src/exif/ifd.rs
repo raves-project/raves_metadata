@@ -245,6 +245,38 @@ mod tests {
         );
     }
 
+    /// IFDs may only appear once in themselves.
+    ///
+    /// Otherwise, things start to get self-referential, which isn't allowed.
+    #[test]
+    fn disallow_self_referential_ifds() {
+        logger();
+
+        let bytes = [100_u8; 23];
+        let state = crate::exif::State {
+            blob: &bytes,
+            current_ifd: IfdGroup::_0,
+            endianness: &winnow::binary::Endianness::Big,
+            recursion_ct: 2_u8,
+            recursion_stack: {
+                let mut s = [None; RECURSION_LIMIT as usize];
+                s[0] = Some(1_u32);
+                s[1] = Some(17_u32);
+                s
+            },
+        };
+
+        let res = super::parse_ifd(&mut Stream {
+            input: &bytes[17..],
+            state,
+        });
+
+        assert!(
+            matches!(res, Err(ExifFatalError::SelfRecursion { .. })),
+            "should detect self-recursion, but res: {res:?}"
+        );
+    }
+
     /// helper: init logger
     fn logger() {
         _ = env_logger::builder()
