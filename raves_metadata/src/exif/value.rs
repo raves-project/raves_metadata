@@ -435,6 +435,23 @@ mod tests {
         bytes
     }
 
+    #[test]
+    #[should_panic]
+    fn passing_stream_w_native_endianness_should_panic() {
+        let mut prim_stream = PrimitiveStream {
+            input: &[4_u8; 4],
+            state: PrimitiveState {
+                tag: &FieldTag::Unknown(0_u16),
+                endianness: &WinnowEndianness::Native, // it should panic bc of this
+                count: 1,
+                ty: &PrimitiveTy::Long,
+            },
+        };
+
+        // ignore the result; this should cause a panic!
+        _ = super::parse_primitive(&mut prim_stream);
+    }
+
     /// helper: init logger
     fn logger() {
         _ = env_logger::builder()
