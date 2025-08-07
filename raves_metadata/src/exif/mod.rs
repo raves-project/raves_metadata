@@ -13,6 +13,7 @@
 //! type, so you usually won't get much useful info from them. Nonetheless,
 //! they're provided for folks who need them.
 
+pub use ifd::Ifd;
 pub use raves_metadata_types::exif::{Endianness, Field, FieldData, primitives::*};
 
 use winnow::{
@@ -26,7 +27,6 @@ use crate::exif::ifd::RECURSION_LIMIT;
 
 use self::{
     error::{ExifFatalError, ExifFatalResult},
-    ifd::Ifd,
     ifd::parse_ifd,
 };
 use raves_metadata_types::exif::ifd::IfdGroup;
