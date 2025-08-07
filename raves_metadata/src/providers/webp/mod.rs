@@ -205,7 +205,10 @@ fn find_chunk<'vec_ref, 'file: 'vec_ref>(
 mod tests {
     use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
-    use crate::{MetadataProvider, providers::webp::error::WebpCreationError};
+    use crate::{
+        MetadataProvider,
+        providers::webp::{chunk::RiffChunk, error::WebpCreationError, find_chunk},
+    };
 
     use super::Webp;
 
@@ -400,6 +403,29 @@ mod tests {
                 ])
             }]
         );
+    }
+
+    /// The `find_chunk` function should be able to find all the needles.
+    #[test]
+    fn find_chunk_finds_needles() {
+        logger();
+
+        let fourcc_list = [b"1234", b"AAAA", b"\0\0\0\0", b"Eggs"];
+
+        let chunks = fourcc_list.map(|needle| {
+            (
+                RiffChunk {
+                    fourcc: *needle,
+                    len: 0_u32,
+                },
+                needle.as_slice(),
+            )
+        });
+
+        for needle in fourcc_list {
+            let maybe_blob = find_chunk(*needle, chunks.as_slice());
+            assert_eq!(maybe_blob, Some(needle.as_slice()));
+        }
     }
 
     /// helper: init the logger
