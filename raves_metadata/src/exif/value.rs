@@ -278,11 +278,7 @@ mod tests {
     /// Unknown types should be rejected.
     #[test]
     fn unknown_type() {
-        _ = env_logger::builder()
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
+        logger();
 
         let mut backing_bytes = Vec::new();
         backing_bytes.extend_from_slice(0_u16.to_le_bytes().as_slice()); // field tag id
@@ -306,11 +302,7 @@ mod tests {
     /// We should accept a long, unknown field.
     #[test]
     fn long_field() {
-        _ = env_logger::builder()
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
+        logger();
 
         let mut backing_bytes = Vec::new();
         backing_bytes.extend_from_slice(666_u16.to_le_bytes().as_slice()); // field tag id
@@ -341,5 +333,15 @@ mod tests {
                 }
             })
         );
+    }
+
+    /// helper: init logger
+    fn logger() {
+        _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
     }
 }
