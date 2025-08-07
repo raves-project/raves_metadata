@@ -273,7 +273,11 @@ mod tests {
     };
     use winnow::binary::Endianness as WinnowEndianness;
 
-    use crate::exif::{State, Stream, error::ExifFieldError};
+    use crate::exif::{
+        State, Stream,
+        error::ExifFieldError,
+        value::{PrimitiveState, PrimitiveStream},
+    };
 
     /// Unknown types should be rejected.
     #[test]
@@ -333,6 +337,102 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn all_nonrational_exif_primitives_should_parse_under_le_and_be() {
+        logger();
+
+        let end_u16 = |v: u16, e: WinnowEndianness| match e {
+            WinnowEndianness::Big => v.to_be_bytes(),
+            WinnowEndianness::Little => v.to_le_bytes(),
+            _ => unreachable!(),
+        };
+
+        let _end_i16 = |v: i16, e: WinnowEndianness| match e {
+            WinnowEndianness::Big => v.to_be_bytes(),
+            WinnowEndianness::Little => v.to_le_bytes(),
+            _ => unreachable!(),
+        };
+
+        let end_u32 = |v: u32, e: WinnowEndianness| match e {
+            WinnowEndianness::Big => v.to_be_bytes(),
+            WinnowEndianness::Little => v.to_le_bytes(),
+            _ => unreachable!(),
+        };
+
+        let end_i32 = |v: i32, e: WinnowEndianness| match e {
+            WinnowEndianness::Big => v.to_be_bytes(),
+            WinnowEndianness::Little => v.to_le_bytes(),
+            _ => unreachable!(),
+        };
+
+        for endianness in [WinnowEndianness::Big, WinnowEndianness::Little] {
+            log::info!("endianness: {endianness:?}");
+
+            for (ty, value, expected_result) in [
+                (
+                    PrimitiveTy::Byte,
+                    mk_value([4_u8].as_slice()),
+                    Primitive::Byte(4_u8),
+                ),
+                (
+                    PrimitiveTy::Ascii,
+                    mk_value(b"c".as_slice()),
+                    Primitive::Ascii(b'c'),
+                ),
+                (
+                    PrimitiveTy::Short,
+                    mk_value(end_u16(u16::MAX, endianness).as_slice()),
+                    Primitive::Short(u16::MAX),
+                ),
+                (
+                    PrimitiveTy::Long,
+                    mk_value(end_u32(45_u32, endianness).as_slice()),
+                    Primitive::Long(45_u32),
+                ),
+                (
+                    PrimitiveTy::Undefined,
+                    mk_value(&[10_u8]),
+                    Primitive::Undefined(10_u8),
+                ),
+                (
+                    PrimitiveTy::SLong,
+                    mk_value(end_i32(-2025_i32, endianness).as_slice()),
+                    Primitive::SLong(-2025_i32),
+                ),
+                (PrimitiveTy::Utf8, mk_value(&[0_u8]), Primitive::Utf8(0_u8)),
+            ] {
+                log::info!("completing value: ({ty:?}, `{value:x?}`)");
+
+                let mut prim_stream = PrimitiveStream {
+                    input: value.as_slice(),
+                    state: PrimitiveState {
+                        tag: &FieldTag::Unknown(0),
+                        endianness: &endianness,
+                        count: 1,
+                        ty: &ty,
+                    },
+                };
+
+                let parsed_primitive = super::parse_primitive(&mut prim_stream).unwrap();
+
+                assert_eq!(parsed_primitive.ty(), ty, "types should match");
+                assert_eq!(
+                    parsed_primitive, expected_result,
+                    "reality should match expectation"
+                );
+            }
+        }
+    }
+
+    /// helper: create primitive values padded correctly
+    fn mk_value(slice: &[u8]) -> [u8; 4] {
+        log::debug!("mk_value... input: {slice:?}");
+        let mut bytes = [0_u8; 4];
+        bytes[0..slice.len()].copy_from_slice(&slice[0..slice.len()]);
+        log::debug!("mk_value... output: {bytes:?}");
+        bytes
     }
 
     /// helper: init logger
