@@ -93,10 +93,12 @@ impl Exif {
         }
 
         // parse out the first IFD (it tells us where the rest are)
-        let (ifd, mut maybe_next_ifd_ptr): (Ifd, Option<u32>) =
-            parse_ifd.parse_next(stateful_input)?;
+        let (first_ifd, mut maybe_next_ifd_ptr): (Ifd, Option<u32>) =
+            parse_ifd.parse_next(stateful_input).inspect_err(|e| {
+                log::error!("Failed to parse Exif! The first IFD failed to parse! err: {e}")
+            })?;
         log::trace!("Completed first IFD! ptr: {maybe_next_ifd_ptr:?}");
-        ifds.push(ifd);
+        ifds.push(first_ifd);
 
         // now, parse out each IFD
         while let Some(next_ifd_ptr) = maybe_next_ifd_ptr {
