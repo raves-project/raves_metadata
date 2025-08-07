@@ -73,8 +73,8 @@ pub fn parse_value(input: &mut Stream) -> ExifFieldResult {
     log::trace!("total size for field: `{total_size}`");
 
     // figure out what `value_or_offset` really is
-    let is_offset: bool = total_size > 4_u32;
-    log::trace!("field has offset instead of inline data..? `{is_offset}`");
+    let is_offset_instead_of_inline_value: bool = total_size > 4_u32;
+    log::trace!("field has offset instead of inline data..? `{is_offset_instead_of_inline_value}`");
     let value: [u8; 4] = match endianness {
         WinnowEndianness::Big => value_or_offset.to_be_bytes(),
         WinnowEndianness::Little => value_or_offset.to_le_bytes(),
@@ -85,7 +85,7 @@ pub fn parse_value(input: &mut Stream) -> ExifFieldResult {
     // the buffer. (offsets are relative to the beginning of the blob)
     //
     // if it's not, just use our value and leave :)
-    let data: &[u8] = match is_offset {
+    let data: &[u8] = match is_offset_instead_of_inline_value {
         true => {
             log::trace!("Using reference to blob for value's absolute offset.");
             let blob_max_index: u32 = input.state.blob.len().saturating_sub(1) as u32;
@@ -116,18 +116,9 @@ pub fn parse_value(input: &mut Stream) -> ExifFieldResult {
 
         false => {
             log::trace!("No value offset detected.");
-            let mut sli = value.as_slice(); // it's just a value; send it over as a slice
 
-            // account for big-endian values smaller than 4 bytes.
-            //
-            // in essence, we need to scoot the bits we care about over to the
-            // other side. otherwise, we're reading them in the right order,
-            // but with padding at the beginning :(
-            if *endianness == WinnowEndianness::Big && total_size < 4 {
-                sli = &sli[4 - total_size as usize..];
-            }
-
-            sli
+            // it's just a value; send it over as a slice
+            value.as_slice()
         }
     };
 
