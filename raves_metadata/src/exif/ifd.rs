@@ -18,6 +18,12 @@ use raves_metadata_types::exif::{
     tags::{Ifd0Tag, KnownTag, SUB_IFD_POINTER_TAGS},
 };
 
+/// A limit on recursion.
+///
+/// This means that one IFD may have `RECURSION_LIMIT` layers of sub-IFDs, but
+/// passing the limit will stop parsing.
+pub const RECURSION_LIMIT: u8 = 32;
+
 /// An image file directory found within Exif metadata.
 ///
 /// These contain a number of fields - at least one - and directions to the
@@ -35,6 +41,14 @@ pub struct Ifd {
 /// Parses out an entire IFD.
 pub fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalError> {
     let endianness = *input.state.endianness;
+
+    // first thing's first...
+    //
+    // add the IFD's pointer to the call stack
+    {
+        let ptr: u32 = (input.state.blob.len() - input.len()) as u32;
+        update_recursion_stack_or_error(input, ptr)?;
+    }
 
     let entry_count: u16 = u16(endianness).parse_next(input).map_err(|_: EmptyError| {
         log::error!("Couldn't find count on IFD - ran out of data!");
@@ -96,8 +110,13 @@ pub fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalE
                     endianness: &endianness,
                     blob: input.state.blob,
                     current_ifd: ifd_group,
+                    recursion_ct: input.state.recursion_ct.saturating_add(1_u8),
+                    recursion_stack: input.state.recursion_stack,
                 },
             };
+
+            // update its recursion stack
+            update_recursion_stack_or_error(state, ptr).ok()?;
 
             let (sub_ifd, uhh_offset_of_next_todo_maybe_use) = parse_ifd.parse_next(state).ok()?;
             Some(sub_ifd)
@@ -128,4 +147,42 @@ fn next_ifd_location(input: &mut Stream) -> Option<u32> {
         log::trace!("Another IFD was detected! index: `{raw_location}`");
         Some(raw_location)
     }
+}
+
+/// Attempts to update the given `input` stream's recursion stack.
+///
+/// This function assumes you have already incremented the `recursion_ct`, so
+/// please ensure you have done so before calling.
+///
+/// # Errors
+///
+/// If the new IFD pointer won't fit, this returns an error.
+fn update_recursion_stack_or_error(input: &mut Stream, ifd_ptr: u32) -> Result<(), ExifFatalError> {
+    // if this hits the recursion limit, ret an error
+    if input.state.recursion_ct >= RECURSION_LIMIT {
+        // uh-oh!
+        //
+        // there are no more `None` spots, meaning the parser has hit the recursion
+        // limit.
+        //
+        // this is a fatal error, so let's warn in the terminal and return an error
+        log::error!("Hit IFD recursion limit! input: {input:#?}");
+        return Err(ExifFatalError::HitRecursionLimit {
+            ifd_group: input.state.current_ifd,
+            call_stack: Box::new(input.state.recursion_stack.map(|c| {
+                // note: this unwrap is fine, as we've already confirmed above that
+                // all element of the array are `None`
+                c.unwrap()
+            })),
+        });
+    }
+
+    // otherwise, set the next element that's `None` and return happily :)
+    debug_assert!(
+        input.state.recursion_stack[input.state.recursion_ct as usize].is_none(),
+        "array indexing should be correct, but `stack[{}]` is not None!",
+        input.state.recursion_ct
+    );
+    input.state.recursion_stack[input.state.recursion_ct as usize] = Some(ifd_ptr);
+    Ok(())
 }
