@@ -31,6 +31,10 @@ impl<'file> MetadataProvider for Png<'file> {
         todo!()
     }
 
+    fn exif(&self) -> Result<crate::exif::Exif, crate::exif::error::ExifFatalError> {
+        todo!()
+    }
+
     fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
         let todo_not_all_pngs_have_xmp = ();
 
