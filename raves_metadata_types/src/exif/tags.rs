@@ -432,6 +432,30 @@ make_key_list_for_group!(enum Ifd0Tag => IfdGroup::_0,
         types: &[Pt::Ascii, Pt::Utf8],
         count: Pc::Any,
     },
+
+    // these are IFD pointers.
+    //
+    // they're poorly placed in the Exif v3.0 spec, but each of them is a tag
+    // under the "0th IFD" (IFD0).
+    //
+    // `ExifIfdPointer` and `GpsInfoIfdPointer` are actually included in TIFF
+    // according to the standard, while `InteroperabilityIfdPointer` is a
+    // private extension from Exif.
+    ExifIfdPointer = 34665 => {
+        name: "Exif IFD Pointer",
+        types: &[Pt::Long],
+        count: Pc::Known(1),
+    },
+    GpsInfoIfdPointer = 34853 => {
+        name: "GPSInfo IFD Pointer",
+        types: &[Pt::Long],
+        count: Pc::Known(1),
+    },
+    InteroperabilityIfdPointer = 40965 => {
+        name: "Interoperability IFD Pointer",
+        types: &[Pt::Long],
+        count: Pc::Known(1),
+    },
 );
 
 /*
