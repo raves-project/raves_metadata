@@ -632,6 +632,58 @@ mod tests {
             }
         )
     }
+
+    #[test]
+    fn real_file() {
+        logger();
+
+        let bytes = include_bytes!("../../assets/exif/1343_exif.bin");
+        let exif = super::Exif::new(&mut bytes.as_slice());
+
+        let expected_exif = Ok(Exif {
+            endianness: Endianness::Big,
+            ifds: vec![Ifd {
+                fields: vec![
+                    Ok(Field {
+                        tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageDescription)),
+                        data: FieldData::List {
+                            list: b"Can you read me?\0"
+                                .iter()
+                                .map(|c| Primitive::Ascii(*c))
+                                .collect(),
+                            ty: PrimitiveTy::Ascii,
+                        },
+                    }),
+                    Ok(Field {
+                        tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::XResolution)),
+                        data: FieldData::Primitive(Primitive::Rational(Rational {
+                            numerator: 72,
+                            denominator: 1,
+                        })),
+                    }),
+                    Ok(Field {
+                        tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::YResolution)),
+                        data: FieldData::Primitive(Primitive::Rational(Rational {
+                            numerator: 72,
+                            denominator: 1,
+                        })),
+                    }),
+                    Ok(Field {
+                        tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ResolutionUnit)),
+                        data: FieldData::Primitive(Primitive::Short(2_u16)), // 2 is for inch, 3 is for cm
+                    }),
+                    Ok(Field {
+                        tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::YCbCrPositioning)),
+                        data: FieldData::Primitive(Primitive::Short(1_u16)), // 1 means "centered" in TIFF
+                    }),
+                ],
+                sub_ifds: Vec::new(),
+            }],
+        });
+
+        assert_eq!(exif, expected_exif)
+    }
+
     /// helper: init logging
     fn logger() {
         _ = env_logger::builder()
