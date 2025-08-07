@@ -147,8 +147,13 @@ impl<'file> Webp<'file> {
 
 impl<'file> MetadataProvider for Webp<'file> {
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
-        let todo_impl_exif_for_webp = ();
-        None
+        const EXIF_CHUNK_HEADER: [u8; 4] = *b"EXIF";
+        let maybe_chunk_blob = find_chunk(EXIF_CHUNK_HEADER, &self.relevant_chunks);
+
+        maybe_chunk_blob.map(|mut blob: &[u8]| {
+            // the blob is already Exif. let's try parsing it!
+            crate::exif::Exif::new(&mut blob)
+        })
     }
 
     fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
