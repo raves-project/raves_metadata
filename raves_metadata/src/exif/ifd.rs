@@ -42,12 +42,28 @@ pub struct Ifd {
 pub fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalError> {
     let endianness = *input.state.endianness;
 
-    // first thing's first...
-    //
     // add the IFD's pointer to the call stack
     {
-        let ptr: u32 = (input.state.blob.len() - input.len()) as u32;
-        update_recursion_stack_or_error(input, ptr)?;
+        let ifd_ptr: u32 = (input.state.blob.len() - input.len()) as u32;
+
+        // first, check if the IFD was already ckd (i.e., self recursion)
+        for maybe_ptr in &input.state.recursion_stack[..input.state.recursion_ct as usize] {
+            let Some(ptr) = maybe_ptr else {
+                unreachable!(
+                    "there should be `RECURSION` elements in the array. this is a bug - please report it!"
+                );
+            };
+
+            if ifd_ptr == *ptr {
+                return Err(ExifFatalError::SelfRecursion {
+                    ifd_group: input.state.current_ifd,
+                    call_stack: Box::new(input.state.recursion_stack),
+                });
+            }
+        }
+
+        // then, update the recursion stack
+        update_recursion_stack_or_error(input, ifd_ptr)?;
     }
 
     let entry_count: u16 = u16(endianness).parse_next(input).map_err(|_: EmptyError| {
