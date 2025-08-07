@@ -20,15 +20,9 @@ use raves_metadata_types::exif::{Field, ifd::IfdGroup};
 pub struct Ifd {
     /// A list of fields on this IFD.
     pub fields: Vec<Result<Field, ExifFieldError>>,
-}
 
-/// A sub-IFD of the primary IFD.
-///
-/// Each one of these has a group, representing which fields it may have, and a
-/// pointer in the Exif data slice.
-pub struct SubIfd {
-    group: IfdGroup,
-    pointer: u32,
+    /// The sub-IFDs present on this IFD.
+    pub sub_ifds: Vec<Ifd>,
 }
 
 /// Parses out an entire IFD.
@@ -47,7 +41,9 @@ pub fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalE
 
     log::trace!("Parsing `{entry_count}` fields...");
     let ifd = Ifd {
+    let mut ifd = Ifd {
         fields: (0..entry_count).map(|_| parse_value(input)).collect(),
+        sub_ifds: Vec::new(),
     };
     log::trace!("Completed field parsing!");
 
