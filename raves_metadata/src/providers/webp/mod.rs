@@ -2,6 +2,7 @@ use winnow::{Parser as _, binary::u8, error::EmptyError, token::take};
 
 use crate::{
     MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
     iptc::{Iptc, error::IptcError},
     xmp::{Xmp, error::XmpError},
 };
@@ -145,6 +146,11 @@ impl<'file> Webp<'file> {
 }
 
 impl<'file> MetadataProvider for Webp<'file> {
+    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
+        let todo_impl_exif_for_webp = ();
+        None
+    }
+
     fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
         // WebP doesn't support IPTC :p
         //
@@ -180,10 +186,6 @@ impl<'file> MetadataProvider for Webp<'file> {
         }
 
         None
-    }
-
-    fn exif(&self) -> Result<crate::exif::Exif, crate::exif::error::ExifFatalError> {
-        let todo_impl_exif_for_webp = todo!();
     }
 }
 

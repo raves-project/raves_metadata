@@ -2,6 +2,7 @@
 
 use crate::{
     MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
     iptc::{Iptc, error::IptcError},
     xmp::{Xmp, error::XmpError},
 };
@@ -27,12 +28,13 @@ impl<'file> Png<'file> {
 }
 
 impl<'file> MetadataProvider for Png<'file> {
-    fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
-        todo!()
+    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
+        let todo_impl_exif_for_png = ();
+        None
     }
 
-    fn exif(&self) -> Result<crate::exif::Exif, crate::exif::error::ExifFatalError> {
-        todo!()
+    fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
+        None // PNG doesn't support IPTC
     }
 
     fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
