@@ -164,29 +164,41 @@ impl<'file> MetadataProvider for Webp<'file> {
         //
         // TODO: do files often embed more than one XMP document? if so,
         // make this combine them! (or return a vec)
-        for chunk in self.relevant_chunks.iter() {
-            // ignore anything that isn't an XMP chunk
-            if chunk.0.fourcc != *b"XMP " {
-                continue;
-            }
 
-            // otherwise, we got an XMP chunk!
-            //
-            // parse its data as UTF-8
-            let doc = match core::str::from_utf8(chunk.1) {
+        const XMP_CHUNK_HEADER: [u8; 4] = *b"XMP ";
+        let maybe_chunk_blob = find_chunk(XMP_CHUNK_HEADER, &self.relevant_chunks);
+
+        maybe_chunk_blob.map(|blob| {
+            // grab its data as UTF-8
+            let doc = match core::str::from_utf8(blob) {
                 Ok(utf8_str) => utf8_str,
                 Err(e) => {
                     log::error!("Contained XMP was not UTF-8! err: {e}");
-                    return Some(Err(XmpError::NotUtf8));
+                    return Err(XmpError::NotUtf8);
                 }
             };
 
-            // parse + return it
-            return Some(crate::xmp::Xmp::new(doc));
-        }
-
-        None
+            // try parsing the data
+            crate::xmp::Xmp::new(doc)
+        })
     }
+}
+
+/// Attempts to find the needle in the list of chunks.
+///
+/// - `needle` is the wanted chunk's header.
+/// - `chunks` comes from the `Webp`'s `relevant_chunks` field.
+fn find_chunk<'vec_ref, 'file: 'vec_ref>(
+    needle: [u8; 4],
+    chunks: &'vec_ref [(RiffChunk, &'file [u8])],
+) -> Option<&'file [u8]> {
+    for (RiffChunk { fourcc, .. }, blob) in chunks {
+        if *fourcc == needle {
+            return Some(blob);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
