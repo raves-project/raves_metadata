@@ -50,7 +50,7 @@ impl Exif {
             suspicious_double_ref_op,
             reason = "we want to save the original slice (\"blob\") for absolute offsets"
         )]
-        let blob = input.clone(); // this is the original input
+        let blob: &[u8] = input.clone(); // this is the original input
 
         // parse the endianness
         let endianness: Endianness = parse_blob_endianness.parse_next(input)?;
@@ -493,7 +493,8 @@ mod tests {
         ); // f1 id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f1 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f1 ct
-        backing_bytes.extend_from_slice(1920_u32.to_be_bytes().as_slice()); // f1 val
+        backing_bytes.extend_from_slice(1920_u16.to_be_bytes().as_slice()); // f1 val
+        backing_bytes.extend_from_slice(0_u16.to_be_bytes().as_slice());
         backing_bytes.extend_from_slice(
             KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)
                 .tag_id()
@@ -502,7 +503,8 @@ mod tests {
         ); // f2 id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f2 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f2 ct
-        backing_bytes.extend_from_slice(1080_u32.to_be_bytes().as_slice()); // f2 val
+        backing_bytes.extend_from_slice(1080_u16.to_be_bytes().as_slice()); // f2 val
+        backing_bytes.extend_from_slice(0_u16.to_be_bytes().as_slice());
 
         // create an offset + some padding for the next IFD
         let next_ifd_offset = backing_bytes.len() as u32 + 4 + 88;
@@ -556,7 +558,8 @@ mod tests {
         ); // f1 tag id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f1 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f1 count
-        backing_bytes.extend_from_slice(1920_u32.to_be_bytes().as_slice()); // f1 data
+        backing_bytes.extend_from_slice(1920_u16.to_be_bytes().as_slice()); // f1 data
+        backing_bytes.extend_from_slice(0_u16.to_be_bytes().as_slice());
         backing_bytes.extend_from_slice(
             KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)
                 .tag_id()
@@ -565,7 +568,8 @@ mod tests {
         ); // f2 tag id
         backing_bytes.extend_from_slice(3_u16.to_be_bytes().as_slice()); // f2 ty
         backing_bytes.extend_from_slice(1_u32.to_be_bytes().as_slice()); // f2 count
-        backing_bytes.extend_from_slice(1080_u32.to_be_bytes().as_slice()); // f2 data
+        backing_bytes.extend_from_slice(1080_u16.to_be_bytes().as_slice()); // f2 data
+        backing_bytes.extend_from_slice(0_u16.to_be_bytes().as_slice());
 
         // no more IFDs...
         backing_bytes.extend_from_slice(0_u32.to_be_bytes().as_slice()); // 'null' offset
