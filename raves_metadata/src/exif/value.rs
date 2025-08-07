@@ -237,11 +237,11 @@ fn parse_primitive(input: &mut PrimitiveStream) -> Result<Primitive, ExifFieldEr
                 .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
         )),
 
-        PrimitiveTy::SRational => Ok(Primitive::Rational(Rational {
-            numerator: u32(*endianness)
+        PrimitiveTy::SRational => Ok(Primitive::SRational(SRational {
+            numerator: i32(*endianness)
                 .parse_next(input)
                 .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
-            denominator: u32(*endianness)
+            denominator: i32(*endianness)
                 .parse_next(input)
                 .map_err(|_: EmptyError| ExifFieldError::OuttaData { ty })?,
         })),
