@@ -186,3 +186,56 @@ fn update_recursion_stack_or_error(input: &mut Stream, ifd_ptr: u32) -> Result<(
     input.state.recursion_stack[input.state.recursion_ct as usize] = Some(ifd_ptr);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::exif::ifd::IfdGroup;
+
+    use crate::exif::{Stream, error::ExifFatalError, ifd::RECURSION_LIMIT};
+
+    /// If we hit the recursion limit, the `update_recursion` func should
+    /// return an error indicating that.
+    #[test]
+    fn hitting_recursion_limit_should_return_err() {
+        logger();
+
+        let bytes = [0_u8; 200];
+        let mut state = crate::exif::State {
+            blob: &bytes,
+            current_ifd: IfdGroup::_0,
+            endianness: &winnow::binary::Endianness::Big,
+            recursion_ct: RECURSION_LIMIT,
+            recursion_stack: (0..RECURSION_LIMIT as u32)
+                .map(Some)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        };
+
+        // update the recursion count, as required by the function
+        state.recursion_ct += 1;
+
+        let res = super::update_recursion_stack_or_error(
+            &mut Stream {
+                input: &bytes,
+                state,
+            },
+            RECURSION_LIMIT as u32,
+        );
+
+        assert!(
+            matches!(res.unwrap_err(), ExifFatalError::HitRecursionLimit { .. }),
+            "should hit recursion limit"
+        );
+    }
+
+    /// helper: init logger
+    fn logger() {
+        _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+    }
+}
