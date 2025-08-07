@@ -595,7 +595,8 @@ mod tests {
                                 tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)),
                                 data: FieldData::Primitive(Primitive::Short(1080)),
                             })
-                        ]
+                        ],
+                        sub_ifds: Vec::new(),
                     },
                     Ifd {
                         fields: vec![Ok(Field {
@@ -605,7 +606,8 @@ mod tests {
                                     .into(),
                                 ty: PrimitiveTy::Short
                             },
-                        }),]
+                        })],
+                        sub_ifds: Vec::new(),
                     },
                     Ifd {
                         fields: vec![
@@ -617,7 +619,8 @@ mod tests {
                                 tag: FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ImageLength)),
                                 data: FieldData::Primitive(Primitive::Short(1080)),
                             })
-                        ]
+                        ],
+                        sub_ifds: Vec::new(),
                     },
                 ]
             }
