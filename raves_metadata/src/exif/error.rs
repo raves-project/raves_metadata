@@ -1,6 +1,7 @@
 use raves_metadata_types::exif::{Field, ifd::IfdGroup, primitives::PrimitiveTy};
 
 use crate::exif::ifd::RECURSION_LIMIT;
+
 /// This type describes the parsing result.
 ///
 /// In summary, if it's the `Err` variant, the parsing failed completely, and
@@ -49,6 +50,12 @@ pub enum ExifFatalError {
 
     /// The IFD didn't give a pointer to the next entry.
     IfdNoPointer,
+
+    /// An IFD attempted to self-recurse, which is disallowed.
+    SelfRecursion {
+        ifd_group: IfdGroup,
+        call_stack: Box<[Option<u32>; RECURSION_LIMIT as usize]>,
+    },
 
     /// Hit recursion limit.
     HitRecursionLimit {
@@ -131,6 +138,15 @@ impl core::fmt::Display for ExifFatalError {
                 f.write_str("The IFD told us it had zero fields, which is invalid.")
             }
             Self::IfdNoPointer => f.write_str("The IFD didn't give a pointer to the next entry."),
+
+            Self::SelfRecursion {
+                ifd_group,
+                call_stack,
+            } => write!(
+                f,
+                "An IFD attempted to self-recurse! This isn't permitted. \
+                group: {ifd_group:?}, call stack: {call_stack:#?}"
+            ),
 
             Self::HitRecursionLimit {
                 ifd_group,
