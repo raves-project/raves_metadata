@@ -59,6 +59,7 @@
 //! ```
 
 use crate::exif::{
+    FieldTag,
     ifd::IfdGroup,
     primitives::{PrimitiveCount, PrimitiveTy},
 };
@@ -252,6 +253,13 @@ impl TryFrom<(IfdGroup, u16)> for KnownTag {
     }
 }
 
+/// A list of all the "pointer tags" used to indicate other IFDs.
+pub const SUB_IFD_POINTER_TAGS: &[FieldTag] = &[
+    FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::ExifIfdPointer)),
+    FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::GpsInfoIfdPointer)),
+    FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::InteroperabilityIfdPointer)),
+];
+
 /*
  *
  *
@@ -441,6 +449,11 @@ make_key_list_for_group!(enum Ifd0Tag => IfdGroup::_0,
     // `ExifIfdPointer` and `GpsInfoIfdPointer` are actually included in TIFF
     // according to the standard, while `InteroperabilityIfdPointer` is a
     // private extension from Exif.
+    //
+    // WARNING: if you add any additional pointer tags here, YOU MUST add them
+    // to the `SUB_IFD_POINTER_TAGS` const at the top of this file.
+    //
+    // otherwise, parser logic will be incorrect!
     ExifIfdPointer = 34665 => {
         name: "Exif IFD Pointer",
         types: &[Pt::Long],
