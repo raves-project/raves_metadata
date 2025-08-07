@@ -7,6 +7,7 @@ use winnow::{
 use super::shared::bmff::parse_header;
 use crate::{
     MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
     providers::shared::bmff::{BoxHeader, BoxType, XMP_UUID, ftyp::FtypBox},
     xmp::{Xmp, error::XmpError},
 };
@@ -26,9 +27,12 @@ impl Mp4<'_> {
 }
 
 impl MetadataProvider for Mp4<'_> {
+    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
+        None // MP4 doesn't support Exif
+    }
+
     fn iptc(&self) -> Option<Result<crate::iptc::Iptc, crate::iptc::error::IptcError>> {
-        let todo_impl_iptc_if_possible = ();
-        None
+        None // container has no IPTC support
     }
 
     fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
@@ -46,10 +50,6 @@ impl MetadataProvider for Mp4<'_> {
         };
 
         Some(crate::Xmp::new(xmp_str))
-    }
-
-    fn exif(&self) -> Result<crate::exif::Exif, crate::exif::error::ExifFatalError> {
-        let todo_make_this_take_none = todo!();
     }
 }
 

@@ -54,11 +54,11 @@ pub mod xmp;
 ///
 /// Each file format is a "provider" - it'll yield its metdata through parsing.
 pub trait MetadataProvider {
+    fn exif(&self) -> Option<Result<Exif, ExifFatalError>>;
+
     /// Parses `self`, a media source, for its IPTC block(s) and returns them
     /// combined into one list of (key, value) pairs.
     fn iptc(&self) -> Option<Result<Iptc, IptcError>>;
-
-    fn exif(&self) -> Result<Exif, ExifFatalError>;
 
     fn xmp(&self) -> Option<Result<Xmp, XmpError>>;
 }
