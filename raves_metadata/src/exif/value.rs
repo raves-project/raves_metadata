@@ -297,6 +297,8 @@ mod tests {
                     current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
                     blob: &backing_bytes,
+                    recursion_ct: 0,
+                    recursion_stack: Default::default(),
                 }
             }),
             Err(ExifFieldError::FieldUnknownType { got: 0_u16 })
@@ -327,6 +329,8 @@ mod tests {
                     endianness: &WinnowEndianness::Little,
                     blob: &backing_bytes,
                     current_ifd: IfdGroup::_0,
+                    recursion_ct: 0,
+                    recursion_stack: Default::default(),
                 }
             }),
             Ok(Field {

@@ -1,5 +1,6 @@
-use raves_metadata_types::exif::{Field, primitives::PrimitiveTy};
+use raves_metadata_types::exif::{Field, ifd::IfdGroup, primitives::PrimitiveTy};
 
+use crate::exif::ifd::RECURSION_LIMIT;
 /// This type describes the parsing result.
 ///
 /// In summary, if it's the `Err` variant, the parsing failed completely, and
@@ -48,6 +49,12 @@ pub enum ExifFatalError {
 
     /// The IFD didn't give a pointer to the next entry.
     IfdNoPointer,
+
+    /// Hit recursion limit.
+    HitRecursionLimit {
+        ifd_group: IfdGroup,
+        call_stack: Box<[u32; RECURSION_LIMIT as usize]>,
+    },
 }
 
 impl winnow::error::ParserError<&[u8]> for ExifFatalError {
@@ -105,7 +112,6 @@ impl core::fmt::Display for ExifFatalError {
                     write!(f, "Got a weird byte-order marker - wasn't ASCII: {found:?}")
                 }
             },
-
             Self::NoTiffMagicNumber => {
                 f.write_str("No TIFF magic number found - the slice was likely cut short.")
             }
@@ -125,6 +131,16 @@ impl core::fmt::Display for ExifFatalError {
                 f.write_str("The IFD told us it had zero fields, which is invalid.")
             }
             Self::IfdNoPointer => f.write_str("The IFD didn't give a pointer to the next entry."),
+
+            Self::HitRecursionLimit {
+                ifd_group,
+                call_stack,
+            } => write!(
+                f,
+                "An IFD recursed more than {RECURSION_LIMIT} times! \
+                This isn't allowed. \
+                group: {ifd_group:?}, call stack: {call_stack:?}"
+            ),
         }
     }
 }

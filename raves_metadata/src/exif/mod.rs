@@ -22,6 +22,8 @@ use winnow::{
     token::take,
 };
 
+use crate::exif::ifd::RECURSION_LIMIT;
+
 use self::{
     error::{ExifFatalError, ExifFatalResult},
     ifd::Ifd,
@@ -67,9 +69,11 @@ impl Exif {
         let stateful_input = &mut Stream {
             input,
             state: State {
-                endianness: &winnow_endianness,
                 blob,
                 current_ifd: IfdGroup::_0, // we always start with IFD 0
+                endianness: &winnow_endianness,
+                recursion_ct: 0,
+                recursion_stack: [None; RECURSION_LIMIT as usize],
             },
         };
 
@@ -106,6 +110,10 @@ impl Exif {
             // previous IFD
             log::trace!("At next IFD! index: `{next_ifd_ptr}`");
             stateful_input.input = &blob[(next_ifd_ptr as usize)..];
+
+            // reset the recursion tracking info
+            stateful_input.state.recursion_ct = 0;
+            stateful_input.state.recursion_stack = Default::default();
 
             // keep parsing
             let (ifd, ptr) = parse_ifd.parse_next(stateful_input)?;
@@ -169,9 +177,25 @@ fn parse_blob_endianness(input: &mut &[u8]) -> ExifFatalResult<Endianness> {
 
 #[derive(Debug)]
 struct State<'a> {
-    current_ifd: IfdGroup,
-    endianness: &'a WinnowEndianness,
+    /// The raw Exif data passed into the parser.
+    ///
+    /// Required due to Exif's pointers.
     blob: &'a [u8],
+
+    /// IFD group we're currently parsing.
+    current_ifd: IfdGroup,
+
+    /// The known endianness of the entire blob.
+    endianness: &'a WinnowEndianness,
+
+    /// Number of times the parser has called `parse_ifd` within this IFD.
+    recursion_ct: u8,
+
+    /// The "stack" of recursions.
+    ///
+    /// Each entry in the array is a "pointer" in the blob referring to an
+    /// index.
+    recursion_stack: [Option<u32>; RECURSION_LIMIT as usize],
 }
 
 /// A stream of the blob wrapped with our endianness.
@@ -295,7 +319,9 @@ mod tests {
                 state: super::State {
                     current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
-                    blob: backing_bytes.as_slice()
+                    blob: backing_bytes.as_slice(),
+                    recursion_ct: 0,
+                    recursion_stack: Default::default(),
                 },
                 input: bytes
             }),
@@ -333,6 +359,8 @@ mod tests {
                 current_ifd: IfdGroup::_0,
                 endianness: &WinnowEndianness::Little,
                 blob: backing_bytes.as_slice(),
+                recursion_ct: 0,
+                recursion_stack: Default::default(),
             },
             input: bytes,
         };
@@ -349,7 +377,9 @@ mod tests {
                 state: super::State {
                     current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
-                    blob: backing_bytes.as_slice()
+                    blob: backing_bytes.as_slice(),
+                    recursion_ct: 0,
+                    recursion_stack: Default::default(),
                 },
                 input: 7_u32.to_le_bytes().as_slice(),
             }),
@@ -360,7 +390,9 @@ mod tests {
                 state: super::State {
                     current_ifd: IfdGroup::_0,
                     endianness: &WinnowEndianness::Little,
-                    blob: backing_bytes.as_slice()
+                    blob: backing_bytes.as_slice(),
+                    recursion_ct: 0,
+                    recursion_stack: Default::default(),
                 },
                 input: 0_u32.to_le_bytes().as_slice(),
             }),
