@@ -54,11 +54,41 @@ pub mod xmp;
 ///
 /// Each file format is a "provider" - it'll yield its metdata through parsing.
 pub trait MetadataProvider {
+    /// Parses `self` to find any Exif metadata.
+    ///
+    /// This returns `None` if Exif isn't supported, or if the file has no Exif
+    /// metadata.
+    ///
+    /// The returned `Exif` struct will provide all IFDs in the metadata,
+    /// meaning that separation is maintained.
+    ///
+    /// # Errors
+    ///
+    /// This will return an error if the file's metadata is malformed or
+    /// corrupted.
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>>;
 
-    /// Parses `self`, a media source, for its IPTC block(s) and returns them
-    /// combined into one list of (key, value) pairs.
+    /// Parses `self` to find any IPTC metadata.
+    ///
+    /// This returns `None` if IPTC isn't supported, or if the file has no IPTC
+    /// metadata.
+    ///
+    /// All IPTC blocks are combined into one list of `(key, value)` pairs.
+    ///
+    /// # Errors
+    ///
+    /// This will return an error if the file's metadata is malformed or
+    /// corrupted.
     fn iptc(&self) -> Option<Result<Iptc, IptcError>>;
 
+    /// Parses `self` to find any XMP metadata.
+    ///
+    /// This returns `None` if the XMP isn't supported, or if the file has no
+    /// XMP metadata.
+    ///
+    /// # Errors
+    ///
+    /// This will return an error if the file's metadata is malformed or
+    /// corrupted.
     fn xmp(&self) -> Option<Result<Xmp, XmpError>>;
 }
