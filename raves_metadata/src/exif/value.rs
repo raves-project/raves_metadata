@@ -194,6 +194,12 @@ fn parse_primitive(input: &mut PrimitiveStream) -> Result<Primitive, ExifFieldEr
     let endianness = input.state.endianness;
     let ty = *input.state.ty;
 
+    // endianness should never be native!
+    debug_assert!(
+        *endianness != WinnowEndianness::Native,
+        "endianness should never be native. this is a bug - please report it!"
+    );
+
     match ty {
         PrimitiveTy::Byte => Ok(Primitive::Byte(
             u8.parse_next(input)
