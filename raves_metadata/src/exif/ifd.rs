@@ -87,13 +87,14 @@ pub fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalE
         })
         .flat_map(|(ifd_group, ptr)| {
             // skip to the IFD in the original blob
-            let blob = &input.state.blob[ptr as usize..];
+            let new_ifd_input = &input.state.blob[ptr as usize..];
 
+            // construct the next state
             let state = &mut Stream {
-                input,
+                input: new_ifd_input,
                 state: State {
                     endianness: &endianness,
-                    blob,
+                    blob: input.state.blob,
                     current_ifd: ifd_group,
                 },
             };
