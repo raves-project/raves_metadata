@@ -14,3 +14,4 @@ Each asset will appear in a list below.
 
 - [`assets/1.webp`](https://developers.google.com/speed/webp/gallery1#credits1): TODO
 - `assets/photopea.webp`: CC0-1.0
+- [`assets/RIFF.webp`](https://github.com/exiftool/exiftool/blob/c587c0ef5a1b4c7983e06a43ab7d0012cb5569bb/t/images/RIFF.webp): GPL-3.0-or-later
