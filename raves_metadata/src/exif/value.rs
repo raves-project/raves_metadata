@@ -50,7 +50,12 @@ pub fn parse_value(input: &mut Stream) -> ExifFieldResult {
         .map_err(|_: EmptyError| ExifFieldError::FieldNoOffsetOrValue)?;
 
     log::trace!(
-        "(field info... tag: {tag}, ty: {ty:?}, count: {count}, value or offset: {value_or_offset})"
+        "(field info...
+    tag: {tag},
+    ty: {ty:?},
+    count: {count},
+    value or offset: {value_or_offset}
+)"
     );
 
     // warn if the real type isn't an expected type
