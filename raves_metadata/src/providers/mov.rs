@@ -320,3 +320,51 @@ pub enum MovConstructionError {
     /// Its filetype info denoted that it's something else:
     NotAMov([u8; 4]),
 }
+
+#[cfg(test)]
+mod tests {
+    use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
+
+    use crate::{MetadataProvider, providers::mov::Mov, xmp::XmpDocument};
+
+    /// Ensures that a real `.mov` parses correctly and yields its XMP metadata.
+    #[test]
+    fn real_mov_file_should_parse_and_yield_xmp() {
+        logger();
+
+        let bytes = include_bytes!("../../assets/providers/mov/QuickTime.mov");
+        let mov: Mov = Mov::new(bytes).expect("mov should parse correctly");
+
+        let xmp = mov
+            .xmp()
+            .expect("the file contains xmp")
+            .expect("the xmp ctor should succeed");
+
+        let document: XmpDocument = xmp.parse().expect("xmp parsing should succeed");
+
+        assert_eq!(
+            document
+                .values_ref()
+                .iter()
+                .find(|v| v.name == "creator")
+                .expect("should be a creator field")
+                .value,
+            XmpValue::OrderedArray(vec![XmpElement {
+                namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                prefix: "rdf".into(),
+                name: "li".into(),
+                value: XmpValue::Simple(XmpPrimitive::Text("Phil Harvey".into()))
+            }])
+        );
+    }
+
+    /// helper: init logger
+    fn logger() {
+        env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .init();
+    }
+}
