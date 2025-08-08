@@ -2,6 +2,7 @@ use winnow::{Parser, binary::be_u32, combinator::repeat, error::EmptyError, toke
 
 use crate::providers::shared::bmff::{BoxHeader, BoxType, parse_header};
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct FtypBox {
     pub header: BoxHeader,
     pub major_brand: [u8; 4],
@@ -18,6 +19,11 @@ impl FtypBox {
             return None;
         };
 
+        Self::parse_body_only(header, input)
+    }
+
+    /// Parses out an `ftyp` box given its header.
+    pub fn parse_body_only(header: BoxHeader, input: &mut &[u8]) -> Option<FtypBox> {
         let Some(payload_len) = header.payload_len() else {
             log::warn!(
                 "Payload length was infinite, but we're parsing the `ftyp` box! \
@@ -27,7 +33,6 @@ impl FtypBox {
         };
 
         let major_brand: [u8; 4] = parse_fourcc(input).ok()?;
-
         let minor_version: u32 = be_u32::<_, EmptyError>.parse_next(input).ok()?;
 
         let compatible_brands: Vec<[u8; 4]> = repeat(
