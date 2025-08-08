@@ -5,6 +5,8 @@
 //!
 //! [^1]: [An Overview of the ISO Base Media File Format by Thomas Stockhammer](https://www.youtube.com/watch?v=CLvR9FVYwWs?t=129)
 
+use std::fmt::Write;
+
 use winnow::{
     binary::{be_u32, be_u64},
     error::ContextError,
@@ -94,7 +96,7 @@ pub fn parse_header(input: &mut &[u8]) -> ModalResult<BoxHeader, ContextError> {
 /// - what "type" it is (might be UUID)
 /// - how large it is
 /// - and, optionally, a UUID
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct BoxHeader {
     /// How long the header is.
     pub header_len: u8,
@@ -121,7 +123,7 @@ impl BoxHeader {
 }
 
 /// A BMFF box's type.
-#[derive(Debug)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum BoxType {
     /// Uses a short ID. No UUID.
     Id([u8; 4]),
@@ -131,8 +133,32 @@ pub enum BoxType {
     Uuid([u8; 16]),
 }
 
+impl core::fmt::Debug for BoxType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Id(id) => {
+                f.write_str("Id(\"")?;
+                for u in id {
+                    f.write_char(*u as char)?;
+                }
+                f.write_char('"')?;
+                f.write_char(')')
+            }
+
+            Self::Uuid(uuid) => {
+                f.write_str("Id(\"")?;
+                for u in uuid {
+                    f.write_char(*u as char)?;
+                }
+                f.write_char('"')?;
+                f.write_char(')')
+            }
+        }
+    }
+}
+
 /// The size of a box.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum BoxSize {
     /// The box is small. u32::MAX is its maximum length.
     Small(u32),
