@@ -1,7 +1,7 @@
 use winnow::{
     ModalResult, Parser as _,
     binary::{be_u32, be_u64},
-    error::{ContextError, StrContext, StrContextValue},
+    error::{ContextError, EmptyError, StrContext, StrContextValue},
     token::take,
 };
 
@@ -46,6 +46,42 @@ impl BoxHeader {
             BoxSize::Large(n) => Some(n.saturating_sub(self.header_len as u64)),
             BoxSize::Eof => None,
         }
+    }
+
+    /// Attempts to grab the box payload for this box header.
+    ///
+    /// This function assumes that you haven't modifed/eaten any bytes inside
+    /// the payload - if so, you'll need to do this manually.
+    pub fn payload<'borrow, 'input: 'borrow>(
+        &self,
+        input: &'borrow mut &'input [u8],
+    ) -> Option<&'input [u8]> {
+        let len: u64 = self.payload_len().unwrap_or(input.len() as u64);
+
+        take(len)
+            .parse_next(input)
+            .inspect_err(|_: &EmptyError| {
+                log::warn!("Failed to fetch box payload! payload len: `{len}`")
+            })
+            .ok()
+    }
+
+    /// Attempts to "eat" the box payload for this box header.
+    ///
+    /// That means the payload won't be kept, so calling this method requires
+    /// that you don't need the data you'd get otherwise.
+    ///
+    /// This function assumes that you haven't modifed/eaten any bytes inside
+    /// the payload - if so, you'll need to do this manually.
+    pub fn eat_payload(&self, input: &mut &[u8]) -> Option<()> {
+        let len: u64 = self.payload_len().unwrap_or(input.len() as u64);
+        take(len)
+            .void()
+            .parse_next(input)
+            .inspect_err(|_: &EmptyError| {
+                log::warn!("Failed to eat box payload! payload len: `{len}`")
+            })
+            .ok()
     }
 }
 
