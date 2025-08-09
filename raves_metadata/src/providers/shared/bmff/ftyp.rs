@@ -1,6 +1,6 @@
 use winnow::{Parser, binary::be_u32, combinator::repeat, error::EmptyError, token::take};
 
-use crate::providers::shared::bmff::{BoxHeader, BoxType, parse_header};
+use crate::providers::shared::bmff::{BoxHeader, BoxType};
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct FtypBox {
@@ -12,7 +12,7 @@ pub struct FtypBox {
 
 impl FtypBox {
     pub fn new(input: &mut &[u8]) -> Option<Self> {
-        let header: BoxHeader = parse_header(input).ok()?;
+        let header: BoxHeader = BoxHeader::new(input).ok()?;
 
         // ensure header has right box ty
         let BoxType::Id([b'f', b't', b'y', b'p']) = header.box_type else {
