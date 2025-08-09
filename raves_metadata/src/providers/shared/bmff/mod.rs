@@ -11,6 +11,7 @@ pub use box_header::BoxHeader;
 
 mod box_header;
 pub mod ftyp;
+pub mod search;
 
 /// The box UUID used for XMP.
 pub const XMP_UUID: [u8; 16] = [
