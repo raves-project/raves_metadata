@@ -4,7 +4,6 @@ use winnow::{
     token::take,
 };
 
-use super::shared::bmff::parse_header;
 use crate::{
     MetadataProvider,
     exif::{Exif, error::ExifFatalError},
@@ -93,7 +92,7 @@ fn parse(mut input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
 fn parse_boxes_until_xmp<'input>(input: &mut &'input [u8]) -> Option<&'input [u8]> {
     while !input.is_empty() {
         // parse box
-        let box_header: BoxHeader = match parse_header(input) {
+        let box_header: BoxHeader = match BoxHeader::new(input) {
             Ok(b) => b,
             Err(e) => {
                 log::error!("Failed to parse box header! err: {e}");

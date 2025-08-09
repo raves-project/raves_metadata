@@ -10,9 +10,7 @@ use crate::{
     MetadataProvider,
     exif::{Exif, error::ExifFatalError},
     iptc::{Iptc, error::IptcError},
-    providers::shared::bmff::{
-        BoxHeader, BoxSize, BoxType, XMP_BOX_ID, XMP_UUID, ftyp::FtypBox, parse_header,
-    },
+    providers::shared::bmff::{BoxHeader, BoxSize, BoxType, XMP_BOX_ID, XMP_UUID, ftyp::FtypBox},
     xmp::{Xmp, error::XmpError},
 };
 
@@ -41,7 +39,7 @@ fn parse(mut input: &[u8]) -> Result<Mov, MovConstructionError> {
 
         while !ftyp_search_input.is_empty() {
             // grab header of this closest atom
-            let atom_header = match parse_header(&mut ftyp_search_input) {
+            let atom_header: BoxHeader = match BoxHeader::new(&mut ftyp_search_input) {
                 Ok(h) => h,
                 Err(e) => {
                     log::debug!(
@@ -134,7 +132,7 @@ fn parse_atoms_until_xmp<'input>(input: &mut &'input [u8]) -> Option<&'input [u8
     // parse until input is empty
     while !input.is_empty() {
         // try grabbing next atom
-        let atom: BoxHeader = match parse_header(input) {
+        let atom: BoxHeader = match BoxHeader::new(input) {
             Ok(ah) => ah,
             Err(e) => {
                 log::error!(
@@ -215,7 +213,7 @@ fn recurse_until_xmp<'input>(
             log::trace!("Found container atom! Recursing... {:?}", atom.box_type);
 
             while !atom_payload.is_empty() {
-                let next_atom_under_container: BoxHeader = match parse_header(atom_payload) {
+                let next_atom_under_container: BoxHeader = match BoxHeader::new(atom_payload) {
                     Ok(ah) => ah,
                     Err(e) => {
                         log::error!(
