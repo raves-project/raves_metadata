@@ -18,6 +18,10 @@ Note that their licenses are specified using the [SPDX License List "short forma
 - [`assets/avif/exif_xmp_after_image_blob.avif`](https://github.com/Exiv2/exiv2/commit/025004688dee949b9e3c1710cdea04aacdf5f912): Unlicensed. Contains gh/clanmills' profile picture, but is distributed within the `Exiv2` test suite.
 - [`assets/avif/exif_xmp_before_image_blob.avif`](https://github.com/Exiv2/exiv2/commit/025004688dee949b9e3c1710cdea04aacdf5f912): Unlicensed. (see above)
 
+### HEIC
+
+- [`assets/heic/C034.heic`](https://github.com/nokiatech/heif_conformance/blob/f17e517f7518984b4450349a88edc09519082c74/conformance_files/C034.heic): Unlicensed. See [`nokiatech/heif_conformance` Issue #3](https://github.com/nokiatech/heif_conformance/issues/3) for more information.
+
 ### WebP
 
 - [`assets/1.webp`](https://developers.google.com/speed/webp/gallery1#credits1): TODO
