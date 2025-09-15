@@ -159,6 +159,7 @@ mod tests {
     use crate::{
         MetadataProvider,
         providers::mp4::Mp4,
+        util::logger,
         xmp::{Xmp, XmpDocument},
     };
 
@@ -219,15 +220,5 @@ mod tests {
         got.sort_by_key(|a| a.name.clone());
 
         assert_eq!(got, expected);
-    }
-
-    /// helper: init the logger
-    fn logger() {
-        env_logger::builder()
-            .is_test(true)
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .init();
     }
 }

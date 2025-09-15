@@ -207,7 +207,10 @@ fn update_recursion_stack_or_error(input: &mut Stream, ifd_ptr: u32) -> Result<(
 mod tests {
     use raves_metadata_types::exif::ifd::IfdGroup;
 
-    use crate::exif::{Stream, error::ExifFatalError, ifd::RECURSION_LIMIT};
+    use crate::{
+        exif::{Stream, error::ExifFatalError, ifd::RECURSION_LIMIT},
+        util::logger,
+    };
 
     /// If we hit the recursion limit, the `update_recursion` func should
     /// return an error indicating that.
@@ -275,15 +278,5 @@ mod tests {
             matches!(res, Err(ExifFatalError::SelfRecursion { .. })),
             "should detect self-recursion, but res: {res:?}"
         );
-    }
-
-    /// helper: init logger
-    fn logger() {
-        _ = env_logger::builder()
-            .is_test(true)
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
     }
 }

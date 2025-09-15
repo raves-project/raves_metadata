@@ -273,10 +273,13 @@ mod tests {
     };
     use winnow::binary::Endianness as WinnowEndianness;
 
-    use crate::exif::{
-        State, Stream,
-        error::ExifFieldError,
-        value::{PrimitiveState, PrimitiveStream},
+    use crate::{
+        exif::{
+            State, Stream,
+            error::ExifFieldError,
+            value::{PrimitiveState, PrimitiveStream},
+        },
+        util::logger,
     };
 
     /// Unknown types should be rejected.
@@ -454,15 +457,5 @@ mod tests {
 
         // ignore the result; this should cause a panic!
         _ = super::parse_primitive(&mut prim_stream);
-    }
-
-    /// helper: init logger
-    fn logger() {
-        _ = env_logger::builder()
-            .is_test(true)
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
     }
 }

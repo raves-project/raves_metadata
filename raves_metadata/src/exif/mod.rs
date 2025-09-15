@@ -262,9 +262,12 @@ mod tests {
     };
     use winnow::binary::Endianness as WinnowEndianness;
 
-    use crate::exif::{
-        Exif, Ifd, error::ExifFatalError, parse_blob_endianness, parse_tiff_header_offset,
-        parse_tiff_magic_number,
+    use crate::{
+        exif::{
+            Exif, Ifd, error::ExifFatalError, parse_blob_endianness, parse_tiff_header_offset,
+            parse_tiff_magic_number,
+        },
+        util::logger,
     };
 
     /// Checks that we're able to parse endianness properly.
@@ -714,15 +717,5 @@ mod tests {
         });
 
         assert_eq!(exif, expected_exif)
-    }
-
-    /// helper: init logging
-    fn logger() {
-        _ = env_logger::builder()
-            .is_test(true)
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .try_init();
     }
 }
