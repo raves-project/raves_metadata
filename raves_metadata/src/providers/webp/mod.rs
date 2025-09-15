@@ -221,6 +221,7 @@ mod tests {
         MetadataProvider,
         exif::{Exif, Ifd},
         providers::webp::{chunk::RiffChunk, error::WebpCreationError, find_chunk},
+        util::logger,
     };
 
     use super::Webp;
@@ -490,16 +491,6 @@ mod tests {
             let maybe_blob = find_chunk(*needle, chunks.as_slice());
             assert_eq!(maybe_blob, Some(needle.as_slice()));
         }
-    }
-
-    /// helper: init the logger
-    fn logger() {
-        env_logger::builder()
-            .is_test(true)
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .init();
     }
 
     /// helper: create the `VP8X` chunk (required for "extended" WebP)

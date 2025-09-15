@@ -323,7 +323,7 @@ pub enum MovConstructionError {
 mod tests {
     use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
-    use crate::{MetadataProvider, providers::mov::Mov, xmp::XmpDocument};
+    use crate::{MetadataProvider, providers::mov::Mov, util::logger, xmp::XmpDocument};
 
     /// Ensures that a real `.mov` parses correctly and yields its XMP metadata.
     #[test]
@@ -354,15 +354,5 @@ mod tests {
                 value: XmpValue::Simple(XmpPrimitive::Text("Phil Harvey".into()))
             }])
         );
-    }
-
-    /// helper: init logger
-    fn logger() {
-        env_logger::builder()
-            .is_test(true)
-            .filter_level(log::LevelFilter::max())
-            .format_file(true)
-            .format_line_number(true)
-            .init();
     }
 }

@@ -92,3 +92,17 @@ pub trait MetadataProvider {
     /// corrupted.
     fn xmp(&self) -> Option<Result<Xmp, XmpError>>;
 }
+
+/// Internal utility methods.
+pub(crate) mod util {
+    /// Helper function to initialize the logger for testing.
+    #[cfg(test)]
+    pub fn logger() {
+        _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::max())
+            .format_file(true)
+            .format_line_number(true)
+            .try_init();
+    }
+}
