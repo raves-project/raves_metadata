@@ -131,10 +131,7 @@ pub fn parse_ifd(input: &mut Stream) -> Result<(Ifd, NextIfdPointer), ExifFatalE
                 },
             };
 
-            // update its recursion stack
-            update_recursion_stack_or_error(state, ptr).ok()?;
-
-            let (sub_ifd, uhh_offset_of_next_todo_maybe_use) = parse_ifd.parse_next(state).ok()?;
+            let (sub_ifd, _next_ifd) = parse_ifd.parse_next(state).ok()?;
             Some(sub_ifd)
         })
         .collect();
