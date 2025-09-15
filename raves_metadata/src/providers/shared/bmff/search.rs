@@ -1,7 +1,7 @@
 use crate::providers::shared::bmff::{BoxHeader, BoxType};
 
 /// Finds all boxes with any of the given types.
-pub fn find_boxes<'borrow, 'types, 'input: 'borrow>(
+pub fn _find_boxes<'borrow, 'types, 'input: 'borrow>(
     input: &'borrow mut &'input [u8],
     types: &'types [BoxType],
 ) -> Vec<(BoxHeader, &'input [u8])> {
