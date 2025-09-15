@@ -1,5 +1,7 @@
 //! Provides primitive value types for Exif tags.
 
+use std::fmt::Debug;
+
 /// An enumeration of the possible values of a primitive.
 ///
 /// Used in each IFD descriptor.
@@ -84,7 +86,7 @@ pub enum PrimitiveCount {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Copy, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Primitive {
     Byte(Byte),
     Ascii(Ascii),
@@ -95,6 +97,28 @@ pub enum Primitive {
     SLong(SLong),
     SRational(SRational),
     Utf8(Utf8),
+}
+
+impl Debug for Primitive {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Byte(byte) => f
+                .debug_tuple("Byte")
+                .field(&format_args!("{byte:#04x}"))
+                .finish(),
+            Self::Ascii(cha) => write!(f, "Ascii('{:?}')", char::from(*cha)),
+            Self::Short(int) => f.debug_tuple("Short").field(int).finish(),
+            Self::Long(int) => f.debug_tuple("Long").field(int).finish(),
+            Self::Rational(rat) => f.debug_tuple("Rational").field(rat).finish(),
+            Self::Undefined(byte) => f
+                .debug_tuple("Undefined")
+                .field(&format_args!("{byte:#04x}"))
+                .finish(),
+            Self::SLong(int) => f.debug_tuple("SLong").field(int).finish(),
+            Self::SRational(rat) => f.debug_tuple("SRational").field(rat).finish(),
+            Self::Utf8(cha) => write!(f, "Utf8('{:?}')", char::from(*cha)),
+        }
+    }
 }
 
 impl Primitive {
