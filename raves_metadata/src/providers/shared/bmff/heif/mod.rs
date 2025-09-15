@@ -7,7 +7,7 @@
 
 use std::{collections::HashMap, fmt::Write as _};
 
-use winnow::{Parser as _, combinator::peek};
+use winnow::{Parser as _, binary::be_u32, combinator::peek, error::EmptyError};
 
 use crate::{
     MetadataProvider,
@@ -448,7 +448,7 @@ fn update_with_item<'input>(
     item: ItemData,
     blob: &'input [u8],
 ) -> Result<(), HeifLikeConstructionError> {
-    log::trace!("Updating `ret` w/ item...");
+    log::trace!("Updating found metadata w/ item. ID: `#{}`", item.item_id);
 
     // ensure only one extent present
     let [single_extent] = item.item_location.extents.as_slice() else {
@@ -466,21 +466,51 @@ fn update_with_item<'input>(
     log::trace!("Slice range: {slice_range:?}");
 
     let blob: &mut &[u8] = &mut &blob[slice_range];
-    log::trace!("Updating `ret` w/ item...");
 
     // exif
     if item.item_info.item_type() == Some(*b"Exif") {
-        // if the BOM (first two bytes) are both NUL, we remove four bytes
-        // before setting it above.
+        let blob_len: usize = blob.len();
+
+        // handle some literal nonsense
         //
-        // for some reason, some parsers stick an extra 4 bytes in there, which
-        // confuses the absolute shit outta the parser
-        // if &blob[..1] == b"\0\0" {
-        log::trace!("Skipping false BOM (padding?) for Exif.");
-        ret.exif = Some(&blob[4..]);
-        // } else {
-        //     ret.exif = Some(blob);
-        // }
+        // (some images can omit the required header)
+        let first_two_bytes: [u8; 2] = [blob[0], blob[1]];
+        let exif_tiff_header_offset = if (first_two_bytes == *b"MM" || first_two_bytes == *b"II")
+            && blob_len < u16::from_be_bytes(first_two_bytes).into()
+        {
+            log::warn!(
+                "Malformed Exif header detected. Missing `exif_tiff_header_offset`. \
+                Assuming value of zero..."
+            );
+            0
+        } else {
+            // parse out the u32 explaining how many bytes to skip
+            let Ok::<_, EmptyError>(exif_tiff_header_offset) = be_u32
+                .context(desc("exif_tiff_header_offset"))
+                .parse_next(blob)
+                .map(|off| off as usize)
+            else {
+                log::error!("Failed to grab `exif_tiff_header_offset` for Exif! Skipping...");
+                return Ok(());
+            };
+            exif_tiff_header_offset
+        };
+
+        // check bounds
+        log::trace!("`exif_tiff_header_offset` is: `{exif_tiff_header_offset}`");
+        if blob_len < exif_tiff_header_offset {
+            log::warn!(
+                "`exif_tiff_header_offset` was larger than the blob. \
+                blob len: `{blob_len}`, \
+                offset: `{exif_tiff_header_offset}`",
+            );
+            if cfg!(debug_assertions) {
+                panic!();
+            }
+        }
+
+        // move to offset (or start from beginning)
+        ret.exif = Some(&blob[exif_tiff_header_offset..]);
 
         log::trace!("Updated w/ Exif!");
         return Ok(());
