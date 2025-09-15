@@ -36,3 +36,34 @@ pub fn parse_nul_terminated_str<'input>(
     .try_map(std::str::from_utf8)
     .parse_next(input)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn nul_terminated_str_parses_normally() {
+        let mut bytes: &[u8] = "🔥😅 hello world!!! 🦾\0".as_bytes();
+        let result: &str = super::parse_nul_terminated_str(&mut bytes).unwrap();
+        assert_eq!(result, "🔥😅 hello world!!! 🦾");
+    }
+
+    #[test]
+    fn nul_terminated_str_without_nul_should_fail() {
+        let mut bytes: &[u8] = "🔥😅 hello world!!! 🦾".as_bytes();
+        let result = super::parse_nul_terminated_str(&mut bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn empty_nul_terminated_str_should_parse() {
+        let mut bytes: &[u8] = "\0".as_bytes();
+        let result: &str = super::parse_nul_terminated_str(&mut bytes).unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn nul_terminated_str_multiple_nuls_should_parse() {
+        let mut bytes: &[u8] = "hello world!\0\0".as_bytes();
+        let result: &str = super::parse_nul_terminated_str(&mut bytes).unwrap();
+        assert_eq!(result, "hello world!");
+    }
+}
