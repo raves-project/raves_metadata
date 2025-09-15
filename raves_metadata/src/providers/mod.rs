@@ -10,6 +10,7 @@
 //! allows a consistent interface for obtaining metadata from different media
 //! sources.
 
+pub mod avif;
 pub mod mov;
 pub mod mp4;
 pub mod png;
