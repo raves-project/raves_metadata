@@ -68,6 +68,7 @@ impl<'xml> XmpDocument<'xml> {
 }
 
 /// An XMP parser.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Xmp {
     document: Element,
 }
