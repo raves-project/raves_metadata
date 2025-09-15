@@ -1,6 +1,8 @@
 Test assets are not necessarily licensed under the project's license.
 
-Each asset will appear in a list below.
+Each asset will appear in the list below.
+
+Note that their licenses are specified using the [SPDX License List "short format" codes](https://spdx.org/licenses), not their full names.
 
 ## Specifications
 
@@ -9,6 +11,12 @@ Each asset will appear in a list below.
 - [`exif/1343_exif.bin`](https://github.com/Exiv2/exiv2/blob/d518449c1ccc43f97f8ce2f9af73a7bc335fa147/test/data/1343_exif.png): GPL-2.0-or-later
 
 ## Providers
+
+### AVIF
+
+- [`assets/avif/bbb_4k.avif`](https://github.com/AOMediaCodec/av1-avif/blob/a7ccb3346244ba97336a162cf945dd999ceb5e08/testFiles/Microsoft/bbb_4k.avif): CC-BY-3.0
+- [`assets/avif/exif_xmp_after_image_blob.avif`](https://github.com/Exiv2/exiv2/commit/025004688dee949b9e3c1710cdea04aacdf5f912): Unlicensed. Contains gh/clanmills' profile picture, but is distributed within the `Exiv2` test suite.
+- [`assets/avif/exif_xmp_before_image_blob.avif`](https://github.com/Exiv2/exiv2/commit/025004688dee949b9e3c1710cdea04aacdf5f912): Unlicensed. (see above)
 
 ### WebP
 
