@@ -7,4 +7,13 @@
 //!
 //! Instead, it's shared here!
 
+use winnow::{
+    error::{StrContext, StrContextValue},
+};
+
 pub mod bmff;
+
+/// Creates a string description for `winnow` context.
+pub const fn desc(s: &'static str) -> StrContext {
+    StrContext::Expected(StrContextValue::Description(s))
+}
