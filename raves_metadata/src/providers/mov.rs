@@ -22,13 +22,6 @@ pub struct Mov<'input> {
     xmp: Option<&'input [u8]>,
 }
 
-impl<'input> Mov<'input> {
-    /// Parses a `MOV` file for its metadata.
-    pub fn new(input: &'input [u8]) -> Result<Mov<'input>, MovConstructionError> {
-        parse(input)
-    }
-}
-
 /// Parses out metadata from an MOV file.
 fn parse(mut input: &[u8]) -> Result<Mov, MovConstructionError> {
     log::trace!("MOV given input w/ len: `{}` bytes", input.len());
@@ -284,7 +277,16 @@ fn recurse_until_xmp<'input>(
     None
 }
 
-impl MetadataProvider for Mov<'_> {
+impl<'input> MetadataProvider<'input> for Mov<'input> {
+    type ConstructionError = MovConstructionError;
+
+    /// Parses a `MOV` file for its metadata.
+    fn new(
+        input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        parse(input.as_ref())
+    }
+
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
         None // unsupported
     }
@@ -311,13 +313,28 @@ impl MetadataProvider for Mov<'_> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum MovConstructionError {
     /// The given file isn't actually an MOV file.
     ///
     /// Its filetype info denoted that it's something else:
     NotAMov([u8; 4]),
 }
+
+impl core::fmt::Display for MovConstructionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        const NOT_A_MOV_MSG: &str = "The given input isn't a QuickTime/MOV file! File type was";
+
+        match self {
+            MovConstructionError::NotAMov(ftyp) => match core::str::from_utf8(ftyp) {
+                Ok(utf8_ftyp) => write!(f, "{NOT_A_MOV_MSG}: `{ftyp:?}`. (UTF-8: `{utf8_ftyp}`)"),
+                Err(_) => write!(f, "{NOT_A_MOV_MSG}: `{ftyp:?}`. (Type was not UTF-8.)"),
+            },
+        }
+    }
+}
+
+impl core::error::Error for MovConstructionError {}
 
 #[cfg(test)]
 mod tests {

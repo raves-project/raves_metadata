@@ -5,6 +5,7 @@ use winnow::{
     token::literal,
 };
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct WebpFileHeader {
     /// Represents how large the file is.
     ///

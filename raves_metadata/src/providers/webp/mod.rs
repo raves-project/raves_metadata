@@ -7,28 +7,34 @@ use crate::{
     xmp::{Xmp, error::XmpError},
 };
 
-use self::{chunk::RiffChunk, error::WebpCreationError, header::WebpFileHeader};
+use self::{chunk::RiffChunk, error::WebpConstructionError, header::WebpFileHeader};
 
 mod chunk;
 mod error;
 mod extended;
 mod header;
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct Webp<'file> {
     _header: WebpFileHeader,
     relevant_chunks: Vec<(RiffChunk, &'file [u8])>,
 }
 
-impl<'file> Webp<'file> {
-    pub fn new(mut file: &'file [u8]) -> Result<Self, WebpCreationError> {
+impl<'input> MetadataProvider<'input> for Webp<'input> {
+    type ConstructionError = WebpConstructionError;
+
+    fn new(
+        input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
         // this does a little parsing, then disposes of the file...
+        let mut input = input.as_ref();
 
         // first, look for the header.
         let header =
-            header::webp_file_header(&mut file).map_err(|_| WebpCreationError::NoHeader)?;
+            header::webp_file_header(&mut input).map_err(|_| WebpConstructionError::NoHeader)?;
 
         // all WebPs should have at least one chunk
-        let first_chunk = chunk::chunk(&mut file).map_err(|_| WebpCreationError::NoChunks)?;
+        let first_chunk = chunk::chunk(&mut input).map_err(|_| WebpConstructionError::NoChunks)?;
 
         // create an empty type for the file based on those two
         let mut s = Self {
@@ -53,8 +59,8 @@ impl<'file> Webp<'file> {
         // this is arranged in a manner explained in the WebP docs. see:
         // https://developers.google.com/speed/webp/docs/riff_container
         let file_info_flags: u8 = u8
-            .parse_next(&mut file)
-            .map_err(|_: EmptyError| WebpCreationError::MalformedExtendedHeader)?;
+            .parse_next(&mut input)
+            .map_err(|_: EmptyError| WebpConstructionError::MalformedExtendedHeader)?;
 
         // check the `E` (Exif) and `X` (XMP) presence bits
         let (has_exif, has_xmp) = (
@@ -75,28 +81,28 @@ impl<'file> Webp<'file> {
 
         // consume the remaining 3 bytes of header + 6 bytes of img size
         take(9_usize)
-            .parse_next(&mut file)
+            .parse_next(&mut input)
             .map_err(|_: EmptyError| {
                 log::error!(
                     "Couldn't consume remaining 'extended' bytes! \
                     This is a bug! Please report it."
                 );
-                WebpCreationError::MalformedExtendedHeader
+                WebpConstructionError::MalformedExtendedHeader
             })?;
 
         // account for any padding in the first chunk
         if first_chunk.len & 1 != 0 {
             _ = take::<_, _, EmptyError>(1_usize)
                 .void()
-                .parse_next(&mut file);
+                .parse_next(&mut input);
         }
 
         // loop the rest of the file, collecting only chunks we care about.
-        while !file.is_empty() {
+        while !input.is_empty() {
             log::info!("loopin");
 
             // grab the chunk header
-            let chunk: RiffChunk = match chunk::chunk(&mut file) {
+            let chunk: RiffChunk = match chunk::chunk(&mut input) {
                 Ok(c) => c,
                 Err(e) => {
                     log::error!(
@@ -116,11 +122,11 @@ impl<'file> Webp<'file> {
             // otherwise, take its data and move on!
             if required_chunks.contains(&chunk.fourcc) {
                 // grab the chunk data
-                let Ok::<_, EmptyError>(chunk_data) = take(chunk.len).parse_next(&mut file) else {
+                let Ok::<_, EmptyError>(chunk_data) = take(chunk.len).parse_next(&mut input) else {
                     log::warn!(
                         "Failed to take chunk's length of data. expected len of `{}`, but was only `{}`.",
                         chunk.len,
-                        file.len()
+                        input.len()
                     );
                     continue;
                 };
@@ -130,22 +136,20 @@ impl<'file> Webp<'file> {
             } else {
                 _ = take::<_, _, EmptyError>(chunk.len)
                     .void()
-                    .parse_next(&mut file);
+                    .parse_next(&mut input);
             }
 
             // if the chunk has an odd length, we'll use its padding byte
             if chunk_len % 2 != 0 {
                 _ = take::<_, _, EmptyError>(1_usize)
                     .void()
-                    .parse_next(&mut file);
+                    .parse_next(&mut input);
             }
         }
 
         Ok(s)
     }
-}
 
-impl<'file> MetadataProvider for Webp<'file> {
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
         const EXIF_CHUNK_HEADER: [u8; 4] = *b"EXIF";
         let maybe_chunk_blob = find_chunk(EXIF_CHUNK_HEADER, &self.relevant_chunks);
@@ -220,7 +224,7 @@ mod tests {
     use crate::{
         MetadataProvider,
         exif::{Exif, Ifd},
-        providers::webp::{chunk::RiffChunk, error::WebpCreationError, find_chunk},
+        providers::webp::{chunk::RiffChunk, error::WebpConstructionError, find_chunk},
         util::logger,
     };
 
@@ -238,7 +242,10 @@ mod tests {
 
         // assertion: empty webp should parse alright
         assert!(
-            matches!(Webp::new(minimal_webp), Err(WebpCreationError::NoChunks)),
+            matches!(
+                Webp::new(&minimal_webp),
+                Err(WebpConstructionError::NoChunks)
+            ),
             "shouldn't parse webp files w/ 0 chunks"
         );
     }
@@ -258,7 +265,7 @@ mod tests {
             (b"VP8 ", [0_u8].as_slice()),
         ]);
 
-        assert!(Webp::new(simple_webp).is_ok());
+        assert!(Webp::new(&simple_webp).is_ok());
     }
 
     /// Extended WebP files should construct fine.
@@ -308,7 +315,7 @@ mod tests {
         logger();
 
         let simple_webp: &[u8] = &make_webp_sample(vec![(b"VP8 ", [0_u8; 100].as_slice())]);
-        let webp: Webp = Webp::new(simple_webp).unwrap();
+        let webp: Webp = Webp::new(&simple_webp).unwrap();
 
         assert!(
             webp.iptc().is_none(),

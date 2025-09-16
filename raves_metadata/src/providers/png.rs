@@ -13,21 +13,56 @@ use winnow::{
     token::{literal, rest, take},
 };
 
+/// A signature indicating that a file is a PNG.
+pub const PNG_SIGNATURE: &[u8; 8] = &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
 /// PNG, or the Portable Network Graphics format, is a common image format as
 /// of writing.
 ///
 /// It can store all three supported metadata standards directly in the file.
-pub struct Png<'file> {
-    file: &'file [u8],
+#[derive(Clone, Debug)]
+pub struct Png<'input> {
+    xmp: Option<&'input str>,
 }
 
-impl<'file> Png<'file> {
-    pub fn new(file: &'file [u8]) -> Self {
-        Self { file }
+impl<'input> MetadataProvider<'input> for Png<'input> {
+    type ConstructionError = PngConstructionError;
+
+    fn new(
+        input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        let mut input = input.as_ref();
+
+        // grab the PNG signature - should be the first eight bytes.
+        //
+        // this ensures we're working with a PNG. if we don't find the signature,
+        // we'll immediately stop parsing
+        log::trace!("Attempting to parse out the PNG signature...");
+        let signature: &[u8; 8] = take(8_usize)
+            .parse_next(&mut input)
+            .map(|s| TryInto::try_into(s).unwrap_or_else(|_| unreachable!()))
+            .map_err(|e: ContextError| {
+                log::warn!(
+                    "This \"PNG\" didn't contain its required PNG signature. \
+                    Is it actually a PNG..? \
+                    err: {e}"
+                );
+                PngConstructionError::NoSignature
+            })?;
+
+        // ensure the signature is correct
+        parse_png_signature.parse(signature).map_err(|e| {
+            log::warn!("Signature obtained from given file did not match a PNG! err: {e}");
+            PngConstructionError::NotAPng { found: *signature }
+        })?;
+
+        log::trace!("Found a PNG signature! Continuing with chunk parsing.");
+
+        Ok(Self {
+            xmp: get_xmp_block(input).ok(),
+        })
     }
-}
 
-impl<'file> MetadataProvider for Png<'file> {
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
         let todo_impl_exif_for_png = ();
         None
@@ -38,14 +73,7 @@ impl<'file> MetadataProvider for Png<'file> {
     }
 
     fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
-        let todo_not_all_pngs_have_xmp = ();
-
-        let xml: &'file str =
-            get_xmp_block(self.file).expect("TODO: add an error variant for this");
-
-        let xmp: Xmp = crate::xmp::Xmp::new(xml).expect("TODO: add an error variant for this");
-
-        Some(Ok(xmp))
+        Some(crate::xmp::Xmp::new(self.xmp?))
     }
 }
 
@@ -58,23 +86,6 @@ struct PngChunkHeader {
 /// From the very start of the file, this function will find the XMP block and
 /// return it as a normal (i.e., UTF-8) [`String`].
 fn get_xmp_block(mut input: &[u8]) -> ModalResult<&str, ContextError> {
-    // grab the PNG signature - should be the first eight bytes.
-    //
-    // this ensures we're working with a PNG. if we don't find the signature,
-    // we'll immediately stop parsing
-    log::trace!("Attempting to parse out the PNG signature...");
-    take(8_usize)
-        .and_then(parse_png_signature)
-        .parse_next(&mut input)
-        .inspect_err(|e| {
-            log::warn!(
-                "This \"PNG\" didn't contain its required PNG signature. \
-                Is it actually a PNG..? \
-                err: {e}"
-            );
-        })?;
-    log::trace!("Found a PNG signature! Continuing with chunk parsing.");
-
     // recursively scan for a chunk w/ XMP
     loop {
         // grab the next header, if available
@@ -108,7 +119,6 @@ fn get_xmp_block(mut input: &[u8]) -> ModalResult<&str, ContextError> {
 
 /// Parses out the file's PNG signature.
 fn parse_png_signature(input: &mut &[u8]) -> ModalResult<(), ContextError> {
-    const PNG_SIGNATURE: &[u8] = &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
     literal(PNG_SIGNATURE).void().parse_next(input)
 }
 
@@ -193,6 +203,43 @@ fn try_to_parse_xmp_from_itxt(mut input: &[u8]) -> ModalResult<Option<&str>, Con
             ErrMode::Cut(ce)
         })
 }
+
+/// An error that occurs when constructing a [`Png`] for its metadata.
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
+pub enum PngConstructionError {
+    /// The file ran out of bytes before we could check for a signature.
+    ///
+    /// It might be empty.
+    NoSignature,
+
+    /// No PNG signature was detected.
+    NotAPng { found: [u8; 8] },
+}
+
+impl core::fmt::Display for PngConstructionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const NOT_A_PNG_MSG: &str = "The given file's signature indicated it was not a PNG";
+
+        match self {
+            PngConstructionError::NoSignature => {
+                f.write_str("File didn't have enough bytes for a signature.")
+            }
+
+            PngConstructionError::NotAPng { found } => match core::str::from_utf8(found) {
+                Ok(utf8_found) => write!(
+                    f,
+                    "{NOT_A_PNG_MSG}. Signature was: `{found:?}`. (UTF-8: `{utf8_found}`)"
+                ),
+                Err(_) => write!(
+                    f,
+                    "{NOT_A_PNG_MSG}. Signature was: `{found:?}`. (Not valid UTF-8.)`"
+                ),
+            },
+        }
+    }
+}
+
+impl core::error::Error for PngConstructionError {}
 
 #[cfg(test)]
 mod tests {
@@ -293,7 +340,7 @@ mod tests {
         .collect();
 
         // with that all over, we can actually run the test ;D
-        let png: Png = Png::new(&technically_a_png);
+        let png: Png = Png::new(&technically_a_png).expect("is a png");
         let xmp: Xmp = png
             .xmp()
             .expect("this PNG has XMP")

@@ -1,6 +1,6 @@
 use winnow::{ModalResult, Parser as _, binary::le_u32, error::ContextError, token::take};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct RiffChunk {
     pub fourcc: [u8; 4],
     pub len: u32,

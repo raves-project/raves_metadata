@@ -34,13 +34,14 @@ mod pitm;
 mod search;
 
 /// A HEIF-like file.
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct HeifLike<'input> {
     exif: Option<&'input [u8]>,
     xmp: Option<&'input [u8]>,
 }
 
 impl HeifLike<'_> {
-    pub fn new<'input>(
+    pub fn parse<'input>(
         input: &mut &'input [u8],
         supported_ftyp_entries: &[[u8; 4]],
     ) -> Result<HeifLike<'input>, HeifLikeConstructionError> {
@@ -48,7 +49,21 @@ impl HeifLike<'_> {
     }
 }
 
-impl<'input> MetadataProvider for HeifLike<'input> {
+impl<'input> MetadataProvider<'input> for HeifLike<'input> {
+    type ConstructionError = HeifLikeConstructionError;
+
+    /// DO NOT CALL THIS.
+    ///
+    /// Call `Self::parse` instead.
+    fn new(
+        _input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        unreachable!(
+            "this is an implementation detail that's effectively private. \
+            please call the `parse` method instead."
+        )
+    }
+
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
         self.exif.map(|mut exif| crate::Exif::new(&mut exif))
     }
