@@ -4,7 +4,7 @@ use crate::{
     MetadataProvider,
     exif::{Exif, error::ExifFatalError},
     iptc::{Iptc, error::IptcError},
-    providers::shared::bmff::heif::{HeifLike, HeifLikeConstructionError},
+    providers::shared::bmff::heif::HeifLike,
     xmp::{Xmp, error::XmpError},
 };
 
@@ -12,18 +12,22 @@ use crate::{
 pub const SUPPORTED_AVIF_BRANDS: &[[u8; 4]] = &[*b"avif", *b"avis"];
 
 /// An AVIF file.
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct Avif<'input> {
     heic_like: HeifLike<'input>,
 }
 
-impl<'input> Avif<'input> {
-    /// Constructs a new AVIF file representation using the `input` blob.
-    pub fn new(mut input: &'input [u8]) -> Result<Self, HeifLikeConstructionError> {
-        HeifLike::new(&mut input, SUPPORTED_AVIF_BRANDS).map(|heic_like| Avif { heic_like })
-    }
-}
+impl<'input> MetadataProvider<'input> for Avif<'input> {
+    type ConstructionError = <HeifLike<'input> as MetadataProvider<'input>>::ConstructionError;
 
-impl<'input> MetadataProvider for Avif<'input> {
+    /// Constructs a new AVIF file representation using the `input` blob.
+    fn new(
+        input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        HeifLike::parse(&mut input.as_ref(), SUPPORTED_AVIF_BRANDS)
+            .map(|heic_like| Avif { heic_like })
+    }
+
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
         self.heic_like.exif()
     }

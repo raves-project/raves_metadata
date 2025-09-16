@@ -11,21 +11,23 @@ use crate::{
     xmp::{Xmp, error::XmpError},
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Mp4<'input> {
     xmp: Option<&'input [u8]>,
 }
 
-impl Mp4<'_> {
+impl<'input> MetadataProvider<'input> for Mp4<'input> {
+    type ConstructionError = Mp4ConstructionError;
+
     /// Reads the given data as an MP4 file.
     ///
     /// This operation extracts its metadata.
-    pub fn new(input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
-        parse(input)
+    fn new(
+        input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        parse(input.as_ref())
     }
-}
 
-impl MetadataProvider for Mp4<'_> {
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
         None // MP4 doesn't support Exif
     }
@@ -141,7 +143,7 @@ fn parse_boxes_until_xmp<'input>(input: &mut &'input [u8]) -> Option<&'input [u8
     None
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum Mp4ConstructionError {
     /// The filetype box is required to continue parsing, but there wasn't one!
     NoFtypBox,
@@ -150,6 +152,38 @@ pub enum Mp4ConstructionError {
     ///
     /// Its filetype info denoted that it's something else:
     NotAnMp4([u8; 4]),
+}
+
+impl core::error::Error for Mp4ConstructionError {}
+
+impl core::fmt::Display for Mp4ConstructionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mp4ConstructionError::NoFtypBox => f.write_str(
+                "No `ftyp`/filetype box was found in the MP4 file, \
+                but one is required to continue parsing.",
+            ),
+            Mp4ConstructionError::NotAnMp4(ftyp) => {
+                let maybe_ftyp_str = str::from_utf8(ftyp);
+
+                if let Ok(ftyp_str) = maybe_ftyp_str {
+                    write!(
+                        f,
+                        "The `ftyp`/filetype box indicated that this \
+                        file was not an MP4. \
+                        Instead, it's a: `{ftyp:?}` (ASCII: `{ftyp_str}`)",
+                    )
+                } else {
+                    write!(
+                        f,
+                        "The `ftyp`/filetype box indicated that this \
+                        file was not an MP4. \
+                        Instead, it's: `{ftyp:?}` (ASCII conv. failed)",
+                    )
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -169,7 +203,7 @@ mod tests {
 
         let bytes = include_bytes!("../../assets/01_simple_with_aves_tags.mp4");
 
-        let mp4: Mp4 = Mp4::new(bytes).expect("parsing mp4 should work");
+        let mp4: Mp4 = Mp4::new(&bytes).expect("parsing mp4 should work");
 
         let xmp: Xmp = mp4
             .xmp()

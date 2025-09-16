@@ -38,6 +38,9 @@
 
 #![forbid(unsafe_code)]
 
+use core::fmt::Debug;
+use std::error::Error;
+
 use iptc::{Iptc, error::IptcError};
 
 use crate::{
@@ -53,7 +56,15 @@ pub mod xmp;
 /// A media file with support for various metadata formats.
 ///
 /// Each file format is a "provider" - it'll yield its metdata through parsing.
-pub trait MetadataProvider {
+pub trait MetadataProvider<'input>: Clone + Debug + Sized + Send + Sync {
+    /// An error that can occur when calling [`MetadataProvider::new`].
+    type ConstructionError: Clone + Debug + PartialEq + PartialOrd + Error + Sized + Send + Sync;
+
+    /// Parses a media file for its metadata.
+    fn new(
+        input: &'input impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError>;
+
     /// Parses `self` to find any Exif metadata.
     ///
     /// This returns `None` if Exif isn't supported, or if the file has no Exif
