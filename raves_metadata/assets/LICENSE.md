@@ -22,12 +22,17 @@ Note that their licenses are specified using the [SPDX License List "short forma
 
 - [`assets/heic/C034.heic`](https://github.com/nokiatech/heif_conformance/blob/f17e517f7518984b4450349a88edc09519082c74/conformance_files/C034.heic): Unlicensed. See [`nokiatech/heif_conformance` Issue #3](https://github.com/nokiatech/heif_conformance/issues/3) for more information.
 
+### MOV (QuickTime)
+
+- [`assets/mov/QuickTime.mov`](https://github.com/exiftool/exiftool/blob/c587c0ef5a1b4c7983e06a43ab7d0012cb5569bb/t/images/QuickTime.mov): GPL-3.0-or-later
+
+### PNG
+
+- `assets/providers/png/exif.png`: CC0-1.0
+  - Screenshot of a blank webpage.
+
 ### WebP
 
 - [`assets/1.webp`](https://developers.google.com/speed/webp/gallery1#credits1): TODO
 - `assets/photopea.webp`: CC0-1.0
 - [`assets/webp/RIFF.webp`](https://github.com/exiftool/exiftool/blob/c587c0ef5a1b4c7983e06a43ab7d0012cb5569bb/t/images/RIFF.webp): GPL-3.0-or-later
-
-### MOV (QuickTime)
-
-- [`assets/mov/QuickTime.mov`](https://github.com/exiftool/exiftool/blob/c587c0ef5a1b4c7983e06a43ab7d0012cb5569bb/t/images/QuickTime.mov): GPL-3.0-or-later
