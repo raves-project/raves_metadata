@@ -325,9 +325,16 @@ impl core::error::Error for PngConstructionError {}
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::xmp::{XmpElement, XmpValue};
+    use raves_metadata_types::{
+        exif::{
+            Field, FieldData, FieldTag,
+            primitives::{Primitive, Rational},
+            tags::{Ifd0Tag, KnownTag},
+        },
+        xmp::{XmpElement, XmpValue},
+    };
 
-    use crate::{MetadataProvider as _, providers::png::Png, xmp::Xmp};
+    use crate::{MetadataProvider as _, exif::Exif, providers::png::Png, util::logger, xmp::Xmp};
 
     /// Checks that we can parse out a PNG signature.
     #[test]
@@ -444,6 +451,38 @@ mod tests {
                 value: XmpValue::Struct(Vec::new()),
             },
             "found struct should match the expected (right) side"
+        )
+    }
+
+    /// Tests parsing out Exif from a 64x64 PNG file taken on my macbook.
+    #[test]
+    fn blank_sample_with_exif() {
+        logger();
+        const BLOB: &[u8] = include_bytes!("../../assets/providers/png/exif.png");
+
+        let png: Png = Png::new(&BLOB).expect("parse PNG");
+
+        let exif: Exif = png
+            .exif()
+            .expect("PNG contains Exif")
+            .expect("Exif is well-formed");
+
+        let a = exif.ifds.first().unwrap();
+
+        let expected_field_tag = FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::XResolution));
+        assert_eq!(
+            *a.fields
+                .iter()
+                .flatten()
+                .find(|f| f.tag == expected_field_tag)
+                .expect("find xres field"),
+            Field {
+                tag: expected_field_tag,
+                data: FieldData::Primitive(Primitive::Rational(Rational {
+                    numerator: 144,
+                    denominator: 1
+                }))
+            }
         )
     }
 }
