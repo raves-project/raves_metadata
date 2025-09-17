@@ -8,7 +8,8 @@ use crate::{
 };
 use winnow::{
     binary::be_u32,
-    error::{ContextError, ErrMode, StrContext, StrContextValue},
+    combinator::peek,
+    error::{ContextError, EmptyError, ErrMode, StrContext, StrContextValue},
     prelude::*,
     token::{literal, rest, take},
 };
@@ -22,6 +23,7 @@ pub const PNG_SIGNATURE: &[u8; 8] = &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 
 /// It can store all three supported metadata standards directly in the file.
 #[derive(Clone, Debug)]
 pub struct Png<'input> {
+    exif: Option<&'input [u8]>,
     xmp: Option<&'input str>,
 }
 
@@ -52,20 +54,26 @@ impl<'input> MetadataProvider<'input> for Png<'input> {
 
         // ensure the signature is correct
         parse_png_signature.parse(signature).map_err(|e| {
-            log::warn!("Signature obtained from given file did not match a PNG! err: {e}");
+            log::warn!(
+                "Signature obtained from given file did not match a PNG! \
+                err: {e}, \
+                found: `{signature:?}`
+                "
+            );
             PngConstructionError::NotAPng { found: *signature }
         })?;
 
         log::trace!("Found a PNG signature! Continuing with chunk parsing.");
 
-        Ok(Self {
-            xmp: get_xmp_block(input).ok(),
-        })
+        // grab metadata by parsing chunks until we've found everything
+        let GetMetadata { exif, xmp } = get_metadata(&mut input);
+
+        // return any metadata we found inside this `self`:
+        Ok(Self { exif, xmp })
     }
 
     fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
-        let todo_impl_exif_for_png = ();
-        None
+        self.exif.map(|mut exif| Exif::new(&mut exif))
     }
 
     fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
@@ -81,40 +89,6 @@ impl<'input> MetadataProvider<'input> for Png<'input> {
 struct PngChunkHeader {
     pub chunk_length: u32,    // in bytes
     pub chunk_ident: [u8; 4], // four ascii letters
-}
-
-/// From the very start of the file, this function will find the XMP block and
-/// return it as a normal (i.e., UTF-8) [`String`].
-fn get_xmp_block(mut input: &[u8]) -> ModalResult<&str, ContextError> {
-    // recursively scan for a chunk w/ XMP
-    loop {
-        // grab the next header, if available
-        log::trace!("Attempting to grab new chunk header...");
-        let PngChunkHeader {
-            chunk_length,
-            chunk_ident,
-        } = parse_chunk_header.parse_next(&mut input)?;
-        log::trace!(
-            "Found chunk with ident: {}",
-            core::str::from_utf8(&chunk_ident).unwrap_or("not UTF-8")
-        );
-
-        // if it's the right chunk, parse it and its data
-        if &chunk_ident == b"iTXt" {
-            log::trace!("Chunk is iTXt. Checking if it contains XMP...");
-            let chunk_data = take(chunk_length as usize).parse_next(&mut input)?;
-            _ = be_u32.parse_next(&mut input)?; // the next chunk'll be the crc; skip it!
-
-            if let Some(xmp) = try_to_parse_xmp_from_itxt(chunk_data)? {
-                log::trace!("Chunk contained XMP data!");
-                return Ok(xmp);
-            }
-        } else {
-            // payload + CRC
-            log::trace!("Chunk was not iTXt. Skipping...");
-            take(chunk_length as usize + 4).parse_next(&mut input)?;
-        }
-    }
 }
 
 /// Parses out the file's PNG signature.
@@ -142,10 +116,120 @@ fn parse_chunk_header(input: &mut &[u8]) -> ModalResult<PngChunkHeader, ContextE
     })
 }
 
+struct GetMetadata<'input> {
+    exif: Option<&'input [u8]>,
+    xmp: Option<&'input str>,
+}
+
+pub const EXIF_CHUNK_IDENT: [u8; 4] = *b"eXIf";
+
+/// Parses through the PNG chunks to find metadata.
+///
+/// Continues until we run out of chunks, or all metadata has been located.
+fn get_metadata<'input>(input: &mut &'input [u8]) -> GetMetadata<'input> {
+    let mut metadata: GetMetadata = GetMetadata {
+        exif: None,
+        xmp: None,
+    };
+
+    // loop until we're out of input
+    while !input.is_empty() {
+        if metadata.exif.is_some() && metadata.xmp.is_some() {
+            break;
+        }
+
+        // parse out chunk
+        let Ok(PngChunkHeader {
+            chunk_length,
+            chunk_ident,
+        }) = parse_chunk_header.parse_next(input)
+        else {
+            log::warn!("Failed to parse PNG chunk header!");
+            break;
+        };
+
+        // log what we got
+        log::trace!(
+            "Found chunk with ident: `{}`",
+            core::str::from_utf8(&chunk_ident).unwrap_or("not UTF-8")
+        );
+
+        // metadata: exif
+        if chunk_ident == EXIF_CHUNK_IDENT {
+            // try parsing out the actual exif data.
+            match peek(take::<_, _, EmptyError>(chunk_length)).parse_next(input) {
+                Ok(exif_blob) => {
+                    _ = take::<_, _, EmptyError>(chunk_length)
+                        .void()
+                        .parse_next(input);
+                    _ = take::<_, _, EmptyError>(4_usize).void().parse_next(input); // crc
+                    log::trace!("Chunk had Exif data!");
+                    metadata.exif = Some(exif_blob);
+                    continue;
+                }
+
+                Err(_) => {
+                    log::error!("Failed to parse out Exif blob from Exif chunk!");
+                }
+            }
+        }
+
+        // metadata: xmp
+        if &chunk_ident == b"iTXt" {
+            log::trace!("Chunk is iTXt. Checking if it contains XMP...");
+            let Ok::<_, EmptyError>(ref mut chunk_data) =
+                peek(take(chunk_length as usize)).parse_next(input)
+            else {
+                log::warn!(
+                    "Couldn't find enough data inside `iTXt`! expected: `{chunk_length}`, got: `{}`",
+                    input.len()
+                );
+                break;
+            };
+
+            let Ok(maybe_xmp) = try_to_parse_xmp_from_itxt(chunk_data) else {
+                log::warn!("Failed to parse any XMP data from chunk!");
+                break;
+            };
+
+            if let Some(xmp) = maybe_xmp {
+                log::trace!("Chunk contained XMP data!");
+                metadata.xmp = Some(xmp);
+            }
+        }
+
+        // if we haven't `continue`d yet, we didn't get anything useful.
+        //
+        // skip the payload and crc...
+        //
+        // payload
+        if take::<_, _, EmptyError>(chunk_length as usize)
+            .void()
+            .parse_next(input)
+            .is_err()
+        {
+            break;
+        };
+
+        // crc
+        if take::<_, _, EmptyError>(4_usize)
+            .void()
+            .parse_next(input)
+            .is_err()
+        {
+            break;
+        };
+    }
+
+    metadata
+}
+
 /// We'll try to grab XMP from this iTXt.
 ///
 /// If it's the right keyword, we'll return its data in `Some(data)`.
-fn try_to_parse_xmp_from_itxt(mut input: &[u8]) -> ModalResult<Option<&str>, ContextError> {
+fn try_to_parse_xmp_from_itxt<'input>(
+    input: &mut &'input [u8],
+) -> ModalResult<Option<&'input str>, ContextError> {
     // we can increase performance with an early-return
     if !input.starts_with(b"XML:com.adobe.xmp") {
         log::trace!("Input doesn't contain the desired XMP keyword (marker). Moving on...");
@@ -158,15 +242,13 @@ fn try_to_parse_xmp_from_itxt(mut input: &[u8]) -> ModalResult<Option<&str>, Con
     // `0x00`. in other words, we'll need to take letters until we find the
     // NUL byte
     log::trace!("Found expected keyword for XMP!");
-    literal(b"XML:com.adobe.xmp")
-        .void()
-        .parse_next(&mut input)?;
+    literal(b"XML:com.adobe.xmp").void().parse_next(input)?;
     log::trace!("Ate XMP keyword. Continuing to grab from input...");
 
     // ok, we have that keyword.
     //
     // let's skip the NUL byte we know about now
-    literal(0_u8).void().parse_next(&mut input)?;
+    literal(0_u8).void().parse_next(input)?;
 
     // the next thing will be the "compression flag", which, according to the
     // XMP specification, must always be `0` for an XMP block
@@ -175,7 +257,7 @@ fn try_to_parse_xmp_from_itxt(mut input: &[u8]) -> ModalResult<Option<&str>, Con
             "to be marked as uncompressed text (0x0)",
         )))
         .void()
-        .parse_next(&mut input)?;
+        .parse_next(input)?;
 
     // after that is the "compression method" - it's also `0` for XMP
     literal(0_u8)
@@ -183,14 +265,14 @@ fn try_to_parse_xmp_from_itxt(mut input: &[u8]) -> ModalResult<Option<&str>, Con
             "no specified compression method (0x0)",
         )))
         .void()
-        .parse_next(&mut input)?;
+        .parse_next(input)?;
 
     // there's another two NUL bytes after those
-    literal(0_u8).void().parse_next(&mut input)?;
-    literal(0_u8).void().parse_next(&mut input)?;
+    literal(0_u8).void().parse_next(input)?;
+    literal(0_u8).void().parse_next(input)?;
 
     // the rest of the input is XMP
-    let the_rest: &[u8] = rest.parse_next(&mut input)?;
+    let the_rest: &[u8] = rest.parse_next(input)?;
 
     // map it into a string
     core::str::from_utf8(the_rest)
