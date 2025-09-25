@@ -104,6 +104,37 @@ pub trait MetadataProvider<'input>: Clone + Debug + Sized + Send + Sync {
     fn xmp(&self) -> Option<Result<Xmp, XmpError>>;
 }
 
+/// Raw helpers for [`MetadataProvider`] implementors.
+///
+/// You may or may not find these methods useful, as they tend to deal
+/// primarily with field access of internal metadata standards' buffers.
+///
+/// However, if you wish to modify these directly, or just immediately take
+/// the metadata as their raw types, you can use these methods instead!
+pub trait MetadataProviderRaw {
+    /// Returns the raw `Option<MaybeParsedExif>` stored inside the provider.
+    ///
+    /// Used primarily to implement the [`MetadataProvider::exif`] method
+    /// easily.
+    ///
+    /// However, users may also prefer it if they'd like to use the raw data
+    /// exactly as-is.
+    fn exif_raw(&self) -> Arc<RwLock<Option<MaybeParsedExif>>> {
+        Arc::new(RwLock::new(None))
+    }
+
+    /// Returns the raw `Option<MaybeParsedXmp>` stored inside the provider.
+    ///
+    /// Used primarily to implement the [`MetadataProvider::xmp`] method
+    /// easily.
+    ///
+    /// However, users may also prefer it if they'd like to use the raw data
+    /// exactly as-is.
+    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
+        Arc::new(RwLock::new(None))
+    }
+}
+
 /// Internal utility methods.
 pub(crate) mod util {
     /// Helper function to initialize the logger for testing.
