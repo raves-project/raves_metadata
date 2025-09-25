@@ -137,6 +137,71 @@ pub trait MetadataProviderRaw {
 
 /// Internal utility methods.
 pub(crate) mod util {
+    use std::sync::{Arc, RwLock};
+
+    use crate::exif::Exif;
+    use crate::iptc::Iptc;
+    use crate::xmp::Xmp;
+
+    /// Metadata that might have been parsed already.
+    ///
+    /// This type allows for caching metadata such that media files are not
+    /// reprocessed each additional time their parse methods are called.
+    ///
+    /// ## Generics
+    ///
+    /// - `R`: Raw
+    /// - `P`: Parsed
+    ///
+    /// ## Why?
+    ///
+    /// `MaybeParsed::Parsed` metadata can be edited! >:)
+    #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
+    pub enum MaybeParsed<R, P>
+    where
+        R: Clone + core::fmt::Debug + PartialEq + PartialOrd + core::hash::Hash,
+        P: Clone + core::fmt::Debug + PartialEq + PartialOrd + core::hash::Hash,
+    {
+        /// Raw metadata that hasn't been processed.
+        Raw(R),
+
+        /// Metadata that's been parsed into its contents.
+        Parsed(P),
+    }
+
+    pub type MaybeParsedExif = MaybeParsed<Vec<u8>, Wrapped<Exif>>;
+    pub type MaybeParsedIptc = MaybeParsed<Vec<u8>, Wrapped<Iptc>>;
+    pub type MaybeParsedXmp = MaybeParsed<String, Wrapped<Xmp>>;
+
+    /// A wrapper struct around metadata standard types.
+    ///
+    /// These provide an easy derive for the [`MaybeParsed`] type above. It
+    /// should never be returned in non-raw interfaces.
+    #[derive(Clone, Debug)]
+    pub struct Wrapped<P: PartialEq + PartialOrd + core::hash::Hash>(
+        /// The wrapped value.
+        ///
+        /// This should be a standard, like [`crate::xmp::Xmp`].
+        pub Arc<RwLock<P>>,
+    );
+
+    // implement those traits below for ez derives on providers
+    impl<P: PartialEq + PartialOrd + core::hash::Hash> PartialEq for Wrapped<P> {
+        fn eq(&self, other: &Self) -> bool {
+            Arc::ptr_eq(&self.0, &other.0)
+        }
+    }
+    impl<P: PartialEq + PartialOrd + core::hash::Hash> PartialOrd for Wrapped<P> {
+        fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+            (Arc::as_ptr(&self.0)).partial_cmp(&(Arc::as_ptr(&other.0)))
+        }
+    }
+    impl<P: PartialEq + PartialOrd + core::hash::Hash> core::hash::Hash for Wrapped<P> {
+        fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+            (Arc::as_ptr(&self.0) as usize).hash(state);
+        }
+    }
+
     /// Helper function to initialize the logger for testing.
     #[cfg(test)]
     pub fn logger() {
