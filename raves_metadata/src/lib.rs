@@ -38,13 +38,13 @@
 
 #![forbid(unsafe_code)]
 
-use core::fmt::Debug;
-use std::error::Error;
+use std::sync::{Arc, RwLock};
 
 use iptc::{Iptc, error::IptcError};
 
 use crate::{
     exif::{Exif, error::ExifFatalError},
+    util::{MaybeParsed, MaybeParsedExif, MaybeParsedXmp, Wrapped},
     xmp::{Xmp, error::XmpError},
 };
 
@@ -55,15 +55,23 @@ pub mod xmp;
 
 /// A media file with support for various metadata formats.
 ///
-/// Each file format is a "provider" - it'll yield its metdata through parsing.
-pub trait MetadataProvider<'input>: Clone + Debug + Sized + Send + Sync {
+/// Each file format is a "provider" - it'll yield its metadata through parsing.
+pub trait MetadataProvider:
+    Clone + core::fmt::Debug + Sized + Send + Sync + MetadataProviderRaw
+{
     /// An error that can occur when calling [`MetadataProvider::new`].
-    type ConstructionError: Clone + Debug + PartialEq + PartialOrd + Error + Sized + Send + Sync;
+    type ConstructionError: Clone
+        + core::fmt::Debug
+        + PartialEq
+        + PartialOrd
+        + core::error::Error
+        + Sized
+        + Send
+        + Sync;
 
     /// Parses a media file for its metadata.
-    fn new(
-        input: &'input impl AsRef<[u8]>,
-    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError>;
+    fn new(input: &impl AsRef<[u8]>)
+    -> Result<Self, <Self as MetadataProvider>::ConstructionError>;
 
     /// Parses `self` to find any Exif metadata.
     ///
@@ -77,7 +85,77 @@ pub trait MetadataProvider<'input>: Clone + Debug + Sized + Send + Sync {
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn exif(&self) -> Option<Result<Exif, ExifFatalError>>;
+    fn exif(&self) -> Option<Result<Arc<RwLock<Exif>>, ExifFatalError>> {
+        // create helper functions.
+        //
+        // these are necessary since we'd otherwise duplicate the logic
+        // below.
+        //
+        // why? because, to avoid data races, we need to check both times,
+        // when we get the lock, the state of the data.
+        //
+        // (doing so also allows us to only `read` at first, then
+        // conditionally `write`... which is nice)
+        fn handle_already_parsed(
+            p: &Wrapped<Exif>,
+        ) -> Option<Result<Arc<RwLock<Exif>>, ExifFatalError>> {
+            log::trace!("Cached Exif found! Returning...");
+            return Some(Ok(Arc::clone(&p.0))); // cheap clone.
+        }
+        fn handle_none<A>() -> Option<A> {
+            log::trace!("No Exif is present in this struct. Returning early.");
+            return None;
+        }
+
+        // if we can access the exif... do that.
+        match &*self.exif_raw().read().unwrap() {
+            // we'll handle this case in a sec.
+            Some(MaybeParsed::Raw(_)) => (),
+
+            // already parsed, so let's return that!
+            Some(MaybeParsed::Parsed(p)) => return handle_already_parsed(p),
+
+            // there's no exif! early return.
+            None => return handle_none(),
+        }
+
+        // otherwise, init the exif and return it.
+        //
+        // note that this re-uses the code above to avoid writing if
+        // possible. (it also prevents "data race" kinda problems)
+        let raw = self.exif_raw();
+        let locked = &mut *raw.write().unwrap();
+        match locked {
+            // we'll handle this case in a sec.
+            Some(MaybeParsed::Raw(r)) => {
+                match Exif::new(&mut r.as_slice()) {
+                    // great, it worked!
+                    //
+                    // return the resulting exif
+                    Ok(p) => {
+                        let wrapped: Wrapped<Exif> = Wrapped(Arc::new(RwLock::new(p)));
+                        log::trace!("Completed Exif parsing! Cached internally.");
+                        locked
+                            .as_mut()
+                            .map(|a| *a = MaybeParsed::Parsed(wrapped.clone()));
+                        return Some(Ok(wrapped.0));
+                    }
+
+                    // otherwise, it's an error.
+                    //
+                    // report it and return an Err!
+                    Err(e) => {
+                        log::error!("Failed to parse Exif! err: {e}");
+                        *locked = None;
+                        return Some(Err(e));
+                    }
+                }
+            }
+
+            Some(MaybeParsed::Parsed(p)) => return handle_already_parsed(p),
+            None => return handle_none(),
+        }
+    }
 
     /// Parses `self` to find any IPTC metadata.
     ///
@@ -90,7 +168,14 @@ pub trait MetadataProvider<'input>: Clone + Debug + Sized + Send + Sync {
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn iptc(&self) -> Option<Result<Iptc, IptcError>>;
+    fn iptc(&self) -> Option<Result<&Iptc, IptcError>> {
+        log::error!(
+            "Attempted to parse for IPTC, but IPTC IIC isn't \
+            implemented in this library yet. \
+            Returning None..."
+        );
+        None
+    }
 
     /// Parses `self` to find any XMP metadata.
     ///
@@ -101,7 +186,75 @@ pub trait MetadataProvider<'input>: Clone + Debug + Sized + Send + Sync {
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn xmp(&self) -> Option<Result<Xmp, XmpError>>;
+    fn xmp(&self) -> Option<Result<Arc<RwLock<Xmp>>, XmpError>> {
+        // create helper functions.
+        //
+        // these are necessary since we'd otherwise duplicate the logic
+        // below.
+        //
+        // why? because, to avoid data races, we need to check both times,
+        // when we get the lock, the state of the data.
+        //
+        // (doing so also allows us to only `read` at first, then
+        // conditionally `write`... which is nice)
+        fn handle_already_parsed(p: &Wrapped<Xmp>) -> Option<Result<Arc<RwLock<Xmp>>, XmpError>> {
+            log::trace!("Cached XMP found! Returning...");
+            return Some(Ok(Arc::clone(&p.0))); // cheap clone.
+        }
+        fn handle_none<A>() -> Option<A> {
+            log::trace!("No XMP is present in this struct. Returning early.");
+            return None;
+        }
+
+        // if we can access the xmp... do that.
+        match &*self.xmp_raw().read().unwrap() {
+            // we'll handle this case in a sec.
+            Some(MaybeParsed::Raw(_)) => (),
+
+            // already parsed, so let's return that!
+            Some(MaybeParsed::Parsed(p)) => return handle_already_parsed(p),
+
+            // there's no xmp! early return.
+            None => return handle_none(),
+        }
+
+        // otherwise, init the xmp and return it.
+        //
+        // note that this re-uses the code above to avoid writing if
+        // possible. (it also prevents "data race" kinda problems)
+        let raw = self.xmp_raw();
+        let locked = &mut *raw.write().unwrap();
+        match locked {
+            // we'll handle this case in a sec.
+            Some(MaybeParsed::Raw(r)) => {
+                match Xmp::new(r.as_str()) {
+                    // great, it worked!
+                    //
+                    // return the resulting xmp
+                    Ok(p) => {
+                        let wrapped: Wrapped<Xmp> = Wrapped(Arc::new(RwLock::new(p)));
+                        log::trace!("Completed XMP parsing! Cached internally.");
+                        locked
+                            .as_mut()
+                            .map(|a| *a = MaybeParsed::Parsed(wrapped.clone()));
+                        return Some(Ok(wrapped.0));
+                    }
+
+                    // otherwise, it's an error.
+                    //
+                    // report it and return an Err!
+                    Err(e) => {
+                        log::error!("Failed to parse XMP! err: {e}");
+                        *locked = None;
+                        return Some(Err(e));
+                    }
+                }
+            }
+
+            Some(MaybeParsed::Parsed(p)) => return handle_already_parsed(p),
+            None => return handle_none(),
+        }
+    }
 }
 
 /// Raw helpers for [`MetadataProvider`] implementors.
