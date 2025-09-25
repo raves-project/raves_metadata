@@ -1,10 +1,10 @@
 //! Contains a metadata provider for the PNG format.
 
+use std::sync::{Arc, RwLock};
+
 use crate::{
-    MetadataProvider,
-    exif::{Exif, error::ExifFatalError},
-    iptc::{Iptc, error::IptcError},
-    xmp::{Xmp, error::XmpError},
+    MetadataProvider, MetadataProviderRaw,
+    util::{MaybeParsedExif, MaybeParsedXmp},
 };
 use winnow::{
     binary::be_u32,
@@ -22,17 +22,27 @@ pub const PNG_SIGNATURE: &[u8; 8] = &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 
 ///
 /// It can store all three supported metadata standards directly in the file.
 #[derive(Clone, Debug)]
-pub struct Png<'input> {
-    exif: Option<&'input [u8]>,
-    xmp: Option<&'input str>,
+pub struct Png {
+    exif: Arc<RwLock<Option<MaybeParsedExif>>>,
+    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
 }
 
-impl<'input> MetadataProvider<'input> for Png<'input> {
+impl MetadataProviderRaw for Png {
+    fn exif_raw(&self) -> std::sync::Arc<std::sync::RwLock<Option<MaybeParsedExif>>> {
+        Arc::clone(&self.exif)
+    }
+
+    fn xmp_raw(&self) -> std::sync::Arc<std::sync::RwLock<Option<MaybeParsedXmp>>> {
+        Arc::clone(&self.xmp)
+    }
+}
+
+impl MetadataProvider for Png {
     type ConstructionError = PngConstructionError;
 
     fn new(
-        input: &'input impl AsRef<[u8]>,
-    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        input: &impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         let mut input = input.as_ref();
 
         // grab the PNG signature - should be the first eight bytes.
@@ -68,20 +78,11 @@ impl<'input> MetadataProvider<'input> for Png<'input> {
         // grab metadata by parsing chunks until we've found everything
         let GetMetadata { exif, xmp } = get_metadata(&mut input);
 
-        // return any metadata we found inside this `self`:
-        Ok(Self { exif, xmp })
-    }
-
-    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
-        self.exif.map(|mut exif| Exif::new(&mut exif))
-    }
-
-    fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
-        None // PNG doesn't support IPTC
-    }
-
-    fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
-        Some(crate::xmp::Xmp::new(self.xmp?))
+        // return any metadata we found inside this `self`...
+        Ok(Self {
+            exif: Arc::new(RwLock::new(exif.map(|p| MaybeParsedExif::Raw(p.into())))),
+            xmp: Arc::new(RwLock::new(xmp.map(|r| MaybeParsedXmp::Raw(r.into())))),
+        })
     }
 }
 
@@ -325,6 +326,7 @@ impl core::error::Error for PngConstructionError {}
 
 #[cfg(test)]
 mod tests {
+
     use raves_metadata_types::{
         exif::{
             Field, FieldData, FieldTag,
@@ -334,7 +336,7 @@ mod tests {
         xmp::{XmpElement, XmpValue},
     };
 
-    use crate::{MetadataProvider as _, exif::Exif, providers::png::Png, util::logger, xmp::Xmp};
+    use crate::{MetadataProvider as _, providers::png::Png, util::logger};
 
     /// Checks that we can parse out a PNG signature.
     #[test]
@@ -430,12 +432,14 @@ mod tests {
 
         // with that all over, we can actually run the test ;D
         let png: Png = Png::new(&technically_a_png).expect("is a png");
-        let xmp: Xmp = png
+
+        let xmp = png
             .xmp()
             .expect("this PNG has XMP")
             .expect("get XMP from PNG");
+        let locked_xmp = xmp.read().unwrap();
 
-        let parsed_xmp = xmp.parse().expect("parse XMP data");
+        let parsed_xmp = (*locked_xmp).parse().expect("parse XMP data");
 
         assert_eq!(
             parsed_xmp.values_ref().len(),
@@ -462,12 +466,13 @@ mod tests {
 
         let png: Png = Png::new(&BLOB).expect("parse PNG");
 
-        let exif: Exif = png
+        let exif = png
             .exif()
             .expect("PNG contains Exif")
             .expect("Exif is well-formed");
+        let exif_locked = exif.read().unwrap();
 
-        let a = exif.ifds.first().unwrap();
+        let a = exif_locked.ifds.first().unwrap();
 
         let expected_field_tag = FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::XResolution));
         assert_eq!(
