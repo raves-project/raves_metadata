@@ -21,7 +21,7 @@ use raves_metadata_types::{
     xmp::{XmpElement, XmpPrimitive, XmpValue},
     xmp_parsing_types::XmpKind as Kind,
 };
-use xmltree::{AttributeName, Element};
+use xmltree::{AttributeName, Element, XMLNode};
 
 use crate::xmp::{
     error::XmpError,
@@ -42,6 +42,7 @@ pub mod types {
 }
 
 /// An XMP document.
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct XmpDocument<'xml>(Vec<XmpElement<'xml>>);
 
 impl<'xml> XmpDocument<'xml> {
@@ -71,6 +72,66 @@ impl<'xml> XmpDocument<'xml> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Xmp {
     document: Element,
+}
+
+impl PartialOrd for Xmp {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // use `PartialEq` to provide an "order"
+        if self.document == other.document {
+            Some(std::cmp::Ordering::Equal)
+        } else {
+            None
+        }
+    }
+}
+
+// dumb recursive hash
+impl core::hash::Hash for Xmp {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        #[inline(always)] // try to prevent recursion from sucking so bad
+        fn inner(elem: &Element, state: &mut impl core::hash::Hasher) {
+            // attributes
+            for (attr_key, attr_value) in &elem.attributes {
+                attr_key.hash(state);
+                attr_value.hash(state);
+            }
+
+            // children
+            for n in &elem.children {
+                match n {
+                    XMLNode::Element(inner_element) => {
+                        // recurse lol
+                        inner(inner_element, state);
+                    }
+
+                    XMLNode::Comment(c) => c.hash(state),
+                    XMLNode::CData(cd) => cd.hash(state),
+                    XMLNode::Text(t) => t.hash(state),
+
+                    XMLNode::ProcessingInstruction(a, b) => {
+                        a.hash(state);
+                        b.hash(state);
+                    }
+                }
+            }
+
+            // name
+            elem.name.hash(state);
+
+            // namespace
+            elem.namespace.hash(state);
+
+            // namespaces
+            for n in &elem.namespaces {
+                n.0.hash(state);
+            }
+
+            // prefix
+            elem.prefix.hash(state);
+        }
+
+        inner(&self.document, state);
+    }
 }
 
 impl Xmp {
