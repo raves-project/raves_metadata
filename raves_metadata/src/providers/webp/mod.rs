@@ -3,13 +3,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use winnow::{Parser as _, binary::u8, error::EmptyError, token::take};
 
-use crate::{
-    MetadataProvider, MetadataProviderRaw,
-    exif::{Exif, error::ExifFatalError},
-    iptc::{Iptc, error::IptcError},
-    util::{MaybeParsed, MaybeParsedExif, MaybeParsedXmp},
-    xmp::{Xmp, error::XmpError},
-};
+use crate::{MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw};
 
 use self::{chunk::RiffChunk, error::WebpConstructionError, header::WebpFileHeader};
 
@@ -27,13 +21,11 @@ pub struct Webp {
 }
 
 impl MetadataProviderRaw for Webp {
-    fn exif_raw(
-        &self,
-    ) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedExif>>> {
+    fn exif_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<MaybeParsedExif>>> {
         Arc::clone(&self.exif)
     }
 
-    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedXmp>>> {
+    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<MaybeParsedXmp>>> {
         Arc::clone(&self.xmp)
     }
 }

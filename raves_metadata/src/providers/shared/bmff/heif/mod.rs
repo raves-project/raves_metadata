@@ -11,7 +11,7 @@ use parking_lot::RwLock;
 use winnow::{Parser as _, binary::be_u32, combinator::peek, error::EmptyError};
 
 use crate::{
-    MetadataProvider, MetadataProviderRaw,
+    MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw,
     providers::shared::{
         bmff::{
             BoxHeader, BoxType,
@@ -24,7 +24,6 @@ use crate::{
         },
         desc,
     },
-    util::{MaybeParsedExif, MaybeParsedXmp},
 };
 
 mod iinf;

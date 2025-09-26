@@ -3,10 +3,7 @@
 use parking_lot::RwLock;
 use std::sync::Arc;
 
-use crate::{
-    MetadataProvider, MetadataProviderRaw,
-    util::{MaybeParsedExif, MaybeParsedXmp},
-};
+use crate::{MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw};
 use winnow::{
     binary::be_u32,
     combinator::peek,
