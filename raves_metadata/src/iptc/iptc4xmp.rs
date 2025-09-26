@@ -134,11 +134,11 @@ pub fn parse_xmp_for_iptc(raw_xmp: &[u8]) -> Result<Iptc, Iptc4XmpError> {
             }
 
             // now, we can map any "vec" types (elements w/ lists)
-            if key.has_vec_ty() {
-                if let Some(iptc_pair) = parse_vec_types(key, element) {
-                    pairs.push(iptc_pair);
-                    continue;
-                }
+            if key.has_vec_ty()
+                && let Some(iptc_pair) = parse_vec_types(key, element)
+            {
+                pairs.push(iptc_pair);
+                continue;
             }
 
             // finally, we can parse the struct types.
@@ -1258,7 +1258,7 @@ impl ElementExt for Element {
     ///
     /// Assumes you're calling this on an element that contains a container,
     /// such as an `rdf:Bag` or `rdf:Seq`, which contains `rdf:li` elements.
-    fn all_li_texts(&self, key: &str) -> Option<Vec<String>> {
+    fn all_li_texts(&self, _key: &str) -> Option<Vec<String>> {
         // first, grab its container element
         let list_container = self
             .children
@@ -1285,7 +1285,7 @@ impl ElementExt for Element {
     ///     - but only if the parent element didn't have any text.
     ///
     /// This is useful for `Iptc4xmpExt:AOContentDescription`, for example.
-    fn self_or_li_text(&self, key: &str) -> Option<String> {
+    fn self_or_li_text(&self, _key: &str) -> Option<String> {
         // if `maybe_text` is `None`, we can try grabbing the text from any
         // potential inner list...
         self.text_string().or_else(|| {

@@ -573,7 +573,7 @@ mod ipmd_top_enum_creation {
     ///
     /// `ipmd_top` is just the `ipmd_top` YAML set. Don't do any other parsing
     /// past the initial hash.
-    pub fn make_enum(ipmd_top: &Yaml) -> IptcEnum {
+    pub fn make_enum(ipmd_top: &Yaml) -> IptcEnum<'_> {
         // unwrap the enum info from its parent
         let raw_enums = ipmd_top
             .as_hash()
@@ -641,10 +641,10 @@ mod ipmd_top_enum_creation {
     }
 
     fn from_yaml<'yaml>(hash: &'yaml yaml_rust2::yaml::Hash, field: &str) -> &'yaml str {
-        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field)) {
-            if let Some(yaml_str) = yaml.as_str() {
-                return yaml_str;
-            }
+        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field))
+            && let Some(yaml_str) = yaml.as_str()
+        {
+            return yaml_str;
         }
 
         panic!("required YAML key not found. field: {field}");
@@ -655,13 +655,13 @@ mod ipmd_top_enum_creation {
         hash: &'yaml yaml_rust2::yaml::Hash,
         field: &str,
     ) -> Option<&'yaml str> {
-        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field)) {
-            if let Some(yaml_str) = yaml.as_str() {
-                // any empty strings must become None; otherwise, we get dupes in
-                // our match maps
-                if !yaml_str.trim().is_empty() {
-                    return Some(yaml_str);
-                }
+        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field))
+            && let Some(yaml_str) = yaml.as_str()
+        {
+            // any empty strings must become None; otherwise, we get dupes in
+            // our match maps
+            if !yaml_str.trim().is_empty() {
+                return Some(yaml_str);
             }
         }
 
@@ -672,13 +672,13 @@ mod ipmd_top_enum_creation {
         hash: &'yaml yaml_rust2::yaml::Hash,
         field: &str,
     ) -> Option<&'yaml str> {
-        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field)) {
-            if let Some(yaml_str) = yaml.as_str() {
-                // any empty strings must become None; otherwise, we get dupes in
-                // our match maps
-                if !yaml_str.trim().is_empty() {
-                    return Some(yaml_str);
-                }
+        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field))
+            && let Some(yaml_str) = yaml.as_str()
+        {
+            // any empty strings must become None; otherwise, we get dupes in
+            // our match maps
+            if !yaml_str.trim().is_empty() {
+                return Some(yaml_str);
             }
         }
 
@@ -686,10 +686,10 @@ mod ipmd_top_enum_creation {
     }
 
     fn optional_number_from_yaml(hash: &yaml_rust2::yaml::Hash, field: &str) -> Option<u16> {
-        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field)) {
-            if let Some(yaml_i64) = yaml.as_i64() {
-                return Some(yaml_i64 as u16);
-            }
+        if let Some(yaml) = hash.get(&yaml_rust2::Yaml::from_str(field))
+            && let Some(yaml_i64) = yaml.as_i64()
+        {
+            return Some(yaml_i64 as u16);
         }
 
         None
@@ -751,7 +751,7 @@ mod ipmd_struct_creation {
     /// Creates a list of Rust structs from a given set of `ipmd_structs`.
     ///
     /// These map directly from the types defined in YAML.
-    pub fn make_structs(ipmd_structs: &Yaml) -> Vec<IptcStruct> {
+    pub fn make_structs(ipmd_structs: &Yaml) -> Vec<IptcStruct<'_>> {
         // we're given an object, but we want the inner list of stuff.
         //
         // this is exposed as a type: `&LinkedHashMap<Yaml, Yaml>`, but

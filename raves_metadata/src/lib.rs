@@ -100,11 +100,11 @@ pub trait MetadataProvider:
             p: &Wrapped<Exif>,
         ) -> Option<Result<Arc<RwLock<Exif>>, ExifFatalError>> {
             log::trace!("Cached Exif found! Returning...");
-            return Some(Ok(Arc::clone(&p.0))); // cheap clone.
+            Some(Ok(Arc::clone(&p.0))) // cheap clone.
         }
         fn handle_none<A>() -> Option<A> {
             log::trace!("No Exif is present in this struct. Returning early.");
-            return None;
+            None
         }
 
         // if we can access the exif... do that.
@@ -135,10 +135,11 @@ pub trait MetadataProvider:
                     Ok(p) => {
                         let wrapped: Wrapped<Exif> = Wrapped(Arc::new(RwLock::new(p)));
                         log::trace!("Completed Exif parsing! Cached internally.");
-                        locked
-                            .as_mut()
-                            .map(|a| *a = MaybeParsed::Parsed(wrapped.clone()));
-                        return Some(Ok(wrapped.0));
+
+                        if let Some(locked) = locked {
+                            *locked = MaybeParsed::Parsed(wrapped.clone());
+                        }
+                        Some(Ok(wrapped.0))
                     }
 
                     // otherwise, it's an error.
@@ -147,13 +148,13 @@ pub trait MetadataProvider:
                     Err(e) => {
                         log::error!("Failed to parse Exif! err: {e}");
                         *locked = None;
-                        return Some(Err(e));
+                        Some(Err(e))
                     }
                 }
             }
 
-            Some(MaybeParsed::Parsed(p)) => return handle_already_parsed(p),
-            None => return handle_none(),
+            Some(MaybeParsed::Parsed(p)) => handle_already_parsed(p),
+            None => handle_none(),
         }
     }
 
@@ -199,11 +200,11 @@ pub trait MetadataProvider:
         // conditionally `write`... which is nice)
         fn handle_already_parsed(p: &Wrapped<Xmp>) -> Option<Result<Arc<RwLock<Xmp>>, XmpError>> {
             log::trace!("Cached XMP found! Returning...");
-            return Some(Ok(Arc::clone(&p.0))); // cheap clone.
+            Some(Ok(Arc::clone(&p.0))) // cheap clone.
         }
         fn handle_none<A>() -> Option<A> {
             log::trace!("No XMP is present in this struct. Returning early.");
-            return None;
+            None
         }
 
         // if we can access the xmp... do that.
@@ -233,7 +234,7 @@ pub trait MetadataProvider:
                         log::error!("XMP was not in UTF-8 format! err: {e}");
                         XmpError::NotUtf8
                     })
-                    .and_then(|s| Xmp::new(s));
+                    .and_then(Xmp::new);
 
                 match creation_result {
                     // great, it worked!
@@ -242,10 +243,11 @@ pub trait MetadataProvider:
                     Ok(p) => {
                         let wrapped: Wrapped<Xmp> = Wrapped(Arc::new(RwLock::new(p)));
                         log::trace!("Completed XMP parsing! Cached internally.");
-                        locked
-                            .as_mut()
-                            .map(|a| *a = MaybeParsed::Parsed(wrapped.clone()));
-                        return Some(Ok(wrapped.0));
+
+                        if let Some(locked) = locked {
+                            *locked = MaybeParsed::Parsed(wrapped.clone());
+                        }
+                        Some(Ok(wrapped.0))
                     }
 
                     // otherwise, it's an error.
@@ -254,13 +256,13 @@ pub trait MetadataProvider:
                     Err(e) => {
                         log::error!("Failed to parse XMP! err: {e}");
                         *locked = None;
-                        return Some(Err(e));
+                        Some(Err(e))
                     }
                 }
             }
 
-            Some(MaybeParsed::Parsed(p)) => return handle_already_parsed(p),
-            None => return handle_none(),
+            Some(MaybeParsed::Parsed(p)) => handle_already_parsed(p),
+            None => handle_none(),
         }
     }
 }

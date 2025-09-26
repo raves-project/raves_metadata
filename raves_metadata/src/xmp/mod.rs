@@ -122,7 +122,7 @@ impl core::hash::Hash for Xmp {
             elem.namespace.hash(state);
 
             // namespaces
-            for n in &elem.namespaces {
+            if let Some(ref n) = elem.namespaces {
                 n.0.hash(state);
             }
 
@@ -150,7 +150,7 @@ impl Xmp {
     }
 
     /// Parses the XMP document and returns a collection of XMP values.
-    pub fn parse(&self) -> Result<XmpDocument, XmpError> {
+    pub fn parse(&self) -> Result<XmpDocument<'_>, XmpError> {
         parse_xmp(self.document()).map(XmpDocument)
     }
 }
@@ -271,15 +271,12 @@ fn parse_xmp(document: &Element) -> Result<Vec<XmpElement<'_>>, XmpError> {
             let parsed_attrs = desc_attrs.iter().flat_map(|(key, val)| {
                 // ignore `rdf:about`, which is an informational marker w/o data
                 // if the namespace and name match `rdf:about`, skip it
-                if let Some(ref attr_namespace) = key.namespace {
-                    if attr_namespace.as_str() == RDF_NAMESPACE
-                        && key.local_name.as_str() == "about"
-                    {
-                        log::trace!(
-                            "Skipping `rdf:about` attribute as value on `rdf:Description`..."
-                        );
-                        return None;
-                    }
+                if let Some(ref attr_namespace) = key.namespace
+                    && attr_namespace.as_str() == RDF_NAMESPACE
+                    && key.local_name.as_str() == "about"
+                {
+                    log::trace!("Skipping `rdf:about` attribute as value on `rdf:Description`...");
+                    return None;
                 }
 
                 log::debug!("Parsing attribute `{key}` with value `{val}`.");
