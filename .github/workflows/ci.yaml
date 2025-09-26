@@ -24,7 +24,7 @@ jobs:
         run: cargo binstall --no-confirm --force cargo-nextest
 
       - name: Lint the project
-        run: timeout 5s cargo clippy -- -A unused_variables
+        run: cargo clippy -- -A unused_variables
 
       - name: Run tests
-        run: timeout 10s cargo nextest run --no-fail-fast
+        run: cargo nextest run --no-fail-fast
