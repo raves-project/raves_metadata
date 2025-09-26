@@ -228,7 +228,15 @@ pub trait MetadataProvider:
         match locked {
             // we'll handle this case in a sec.
             Some(MaybeParsed::Raw(r)) => {
-                match Xmp::new(r.as_str()) {
+                // try parsing as str, then map into xmp
+                let creation_result: Result<Xmp, XmpError> = core::str::from_utf8(r)
+                    .map_err(|e| {
+                        log::error!("XMP was not in UTF-8 format! err: {e}");
+                        XmpError::NotUtf8
+                    })
+                    .and_then(|s| Xmp::new(s));
+
+                match creation_result {
                     // great, it worked!
                     //
                     // return the resulting xmp
@@ -322,12 +330,12 @@ pub(crate) mod util {
         Raw(R),
 
         /// Metadata that's been parsed into its contents.
-        Parsed(P),
+        Parsed(Wrapped<P>),
     }
 
-    pub type MaybeParsedExif = MaybeParsed<Vec<u8>, Wrapped<Exif>>;
-    pub type MaybeParsedIptc = MaybeParsed<Vec<u8>, Wrapped<Iptc>>;
-    pub type MaybeParsedXmp = MaybeParsed<String, Wrapped<Xmp>>;
+    pub type MaybeParsedExif = MaybeParsed<Vec<u8>, Exif>;
+    pub type MaybeParsedIptc = MaybeParsed<Vec<u8>, Iptc>;
+    pub type MaybeParsedXmp = MaybeParsed<Vec<u8>, Xmp>;
 
     /// A wrapper struct around metadata standard types.
     ///
