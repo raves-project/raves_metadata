@@ -4,22 +4,23 @@
 //! does, however, refer to boxes as "atoms", which is practically a semantic
 //! difference instead of a behavioral one.
 
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 use winnow::{Parser, error::EmptyError, token::take};
 
 use crate::{
-    MetadataProvider,
-    exif::{Exif, error::ExifFatalError},
-    iptc::{Iptc, error::IptcError},
+    MetadataProvider, MetadataProviderRaw,
     providers::shared::bmff::{BoxHeader, BoxSize, BoxType, XMP_BOX_ID, XMP_UUID, ftyp::FtypBox},
-    xmp::{Xmp, error::XmpError},
+    util::MaybeParsedXmp,
 };
 
 /// A QuickTime File Format (QTFF) movie file.
 ///
 /// Contains XMP metadata exclusively.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Hash)]
-pub struct Mov<'input> {
-    xmp: Option<&'input [u8]>,
+#[derive(Clone, Debug)]
+pub struct Mov {
+    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
 }
 
 /// Parses out metadata from an MOV file.
@@ -117,7 +118,11 @@ fn parse(mut input: &[u8]) -> Result<Mov, MovConstructionError> {
     // check all the other boxes until we find what we want!
     let xmp: Option<&[u8]> = parse_atoms_until_xmp(&mut input);
 
-    Ok(Mov { xmp })
+    Ok(Mov {
+        xmp: Arc::new(RwLock::new(
+            xmp.map(|raw| MaybeParsedXmp::Raw(raw.to_vec())),
+        )),
+    })
 }
 
 /// Parses atoms until it finds an XMP atom, including recursively.
@@ -277,39 +282,20 @@ fn recurse_until_xmp<'input>(
     None
 }
 
-impl<'input> MetadataProvider<'input> for Mov<'input> {
+impl MetadataProviderRaw for Mov {
+    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
+        Arc::clone(&self.xmp)
+    }
+}
+
+impl MetadataProvider for Mov {
     type ConstructionError = MovConstructionError;
 
     /// Parses a `MOV` file for its metadata.
     fn new(
-        input: &'input impl AsRef<[u8]>,
-    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        input: &impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         parse(input.as_ref())
-    }
-
-    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
-        None // unsupported
-    }
-
-    fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
-        None // unsupported
-    }
-
-    fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
-        // grab our blob, if any
-        let xmp_blob: &[u8] = self.xmp?;
-
-        // convert to utf-8
-        let xmp_blob_utf8 = match core::str::from_utf8(xmp_blob) {
-            Ok(utf8) => utf8,
-            Err(e) => {
-                log::error!("XMP blob wasn't UTF-8! err: {e}");
-                return Some(Err(XmpError::NotUtf8));
-            }
-        };
-
-        // try parsing it as XMP
-        Some(Xmp::new(xmp_blob_utf8))
     }
 }
 
@@ -354,8 +340,9 @@ mod tests {
             .xmp()
             .expect("the file contains xmp")
             .expect("the xmp ctor should succeed");
+        let xmp_locked = xmp.read();
 
-        let document: XmpDocument = xmp.parse().expect("xmp parsing should succeed");
+        let document: XmpDocument = xmp_locked.parse().expect("xmp parsing should succeed");
 
         assert_eq!(
             document
