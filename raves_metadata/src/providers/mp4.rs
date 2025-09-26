@@ -9,9 +9,8 @@ use winnow::{
 };
 
 use crate::{
-    MetadataProvider, MetadataProviderRaw,
+    MaybeParsedXmp, MetadataProvider, MetadataProviderRaw,
     providers::shared::bmff::{BoxHeader, BoxType, XMP_UUID, ftyp::FtypBox},
-    util::MaybeParsedXmp,
 };
 
 #[derive(Clone, Debug)]

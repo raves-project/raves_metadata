@@ -12,18 +12,16 @@ pub struct Avif {
 }
 
 impl MetadataProviderRaw for Avif {
-    fn exif_raw(
-        &self,
-    ) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedExif>>> {
+    fn exif_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedExif>>> {
         self.heic_like.exif_raw()
     }
 
-    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedXmp>>> {
+    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedXmp>>> {
         self.heic_like.xmp_raw()
     }
 }
 
-impl<'input> MetadataProvider for Avif {
+impl MetadataProvider for Avif {
     type ConstructionError = <HeifLike as MetadataProvider>::ConstructionError;
 
     /// Constructs a new AVIF file representation using the `input` blob.

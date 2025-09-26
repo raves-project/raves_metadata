@@ -10,9 +10,8 @@ use parking_lot::RwLock;
 use winnow::{Parser, error::EmptyError, token::take};
 
 use crate::{
-    MetadataProvider, MetadataProviderRaw,
+    MaybeParsedXmp, MetadataProvider, MetadataProviderRaw,
     providers::shared::bmff::{BoxHeader, BoxSize, BoxType, XMP_BOX_ID, XMP_UUID, ftyp::FtypBox},
-    util::MaybeParsedXmp,
 };
 
 /// A QuickTime File Format (QTFF) movie file.

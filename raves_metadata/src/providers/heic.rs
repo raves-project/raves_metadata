@@ -16,13 +16,11 @@ pub struct Heic {
 }
 
 impl MetadataProviderRaw for Heic {
-    fn exif_raw(
-        &self,
-    ) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedExif>>> {
+    fn exif_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedExif>>> {
         self.heic_like.exif_raw()
     }
 
-    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedXmp>>> {
+    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedXmp>>> {
         self.heic_like.xmp_raw()
     }
 }
