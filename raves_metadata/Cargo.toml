@@ -1,7 +1,7 @@
 [package]
 name = "raves_metadata"
 description = "A library to parse metadata from media files"
-version = "0.1.0"
+version = "0.0.0"
 readme = "../README.md"
 
 # derive some props from the workspace
@@ -15,7 +15,7 @@ rust-version.workspace = true
 [dependencies]
 log = "0.4.27"
 parking_lot = "0.12.4"
-raves_metadata_types = { path = "../raves_metadata_types" }
+raves_metadata_types = { version = "0.0.0", path = "../raves_metadata_types" }
 winnow = "0.7.11"
 
 
