@@ -23,8 +23,14 @@ jobs:
       - name: Install `cargo-nextest`
         run: cargo binstall --no-confirm --force cargo-nextest
 
+      - name: Install `cargo-semver-checks`
+        run: cargo binstall --no-confirm --force cargo-semver-checks
+
       - name: Lint the project
         run: cargo clippy -- -A unused_variables
 
       - name: Run tests
         run: cargo nextest run --no-fail-fast
+
+      - name: Check semantic versioning
+        run: cargo semver-checks
