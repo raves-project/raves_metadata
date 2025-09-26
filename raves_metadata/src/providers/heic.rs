@@ -5,43 +5,37 @@
 //!
 //! You might prefer AVIF for better efficiency and freely permitted usage.
 
-use crate::{
-    MetadataProvider,
-    exif::{Exif, error::ExifFatalError},
-    iptc::{Iptc, error::IptcError},
-    providers::shared::bmff::heif::HeifLike,
-    xmp::{Xmp, error::XmpError},
-};
+use crate::{MetadataProvider, MetadataProviderRaw, providers::shared::bmff::heif::HeifLike};
 
 const SUPPORTED_HEIC_BRANDS: &[[u8; 4]] = &[*b"heic"];
 
 /// A HEIC file.
-#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
-pub struct Heic<'input> {
-    heic_like: HeifLike<'input>,
+#[derive(Clone, Debug)]
+pub struct Heic {
+    heic_like: HeifLike,
 }
 
-impl<'input> MetadataProvider<'input> for Heic<'input> {
-    type ConstructionError = <HeifLike<'input> as MetadataProvider<'input>>::ConstructionError;
+impl MetadataProviderRaw for Heic {
+    fn exif_raw(
+        &self,
+    ) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedExif>>> {
+        self.heic_like.exif_raw()
+    }
+
+    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::util::MaybeParsedXmp>>> {
+        self.heic_like.xmp_raw()
+    }
+}
+
+impl MetadataProvider for Heic {
+    type ConstructionError = <HeifLike as MetadataProvider>::ConstructionError;
 
     /// Constructs a HEIC representation from the given input blob.
     fn new(
-        input: &'input impl AsRef<[u8]>,
-    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        input: &impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         HeifLike::parse(&mut input.as_ref(), SUPPORTED_HEIC_BRANDS)
             .map(|heic_like| Heic { heic_like })
-    }
-
-    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
-        self.heic_like.exif()
-    }
-
-    fn iptc(&self) -> Option<Result<Iptc, IptcError>> {
-        self.heic_like.iptc()
-    }
-
-    fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
-        self.heic_like.xmp()
     }
 }
 
@@ -53,7 +47,7 @@ mod tests {
         tags::{ExifIfdTag, KnownTag},
     };
 
-    use crate::{MetadataProvider, exif::Exif, providers::heic::Heic, util::logger};
+    use crate::{MetadataProvider, providers::heic::Heic, util::logger};
 
     #[test]
     fn nokia_conformance_file_c034_heic_parses_despite_malformed_exif_tiff_header_offset() {
@@ -69,13 +63,14 @@ mod tests {
         assert!(file.xmp().is_none(), "xmp not present in file");
 
         // grab exif
-        let exif: Exif = file
+        let exif = file
             .exif()
             .expect("file has exif")
             .expect("exif should be well-formed");
+        let exif_locked = exif.read();
 
         // grab its exif ifd
-        let exif_ifd = exif
+        let exif_ifd = exif_locked
             .ifds
             .first()
             .expect("should have an ifd")

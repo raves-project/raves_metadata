@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use parking_lot::RwLock;
+
 use winnow::{
     Parser,
     error::{ContextError, EmptyError},
@@ -5,52 +9,32 @@ use winnow::{
 };
 
 use crate::{
-    MetadataProvider,
-    exif::{Exif, error::ExifFatalError},
+    MetadataProvider, MetadataProviderRaw,
     providers::shared::bmff::{BoxHeader, BoxType, XMP_UUID, ftyp::FtypBox},
-    xmp::{Xmp, error::XmpError},
+    util::MaybeParsedXmp,
 };
 
 #[derive(Clone, Debug)]
-pub struct Mp4<'input> {
-    xmp: Option<&'input [u8]>,
+pub struct Mp4 {
+    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
 }
 
-impl<'input> MetadataProvider<'input> for Mp4<'input> {
+impl MetadataProviderRaw for Mp4 {
+    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
+        Arc::clone(&self.xmp)
+    }
+}
+
+impl MetadataProvider for Mp4 {
     type ConstructionError = Mp4ConstructionError;
 
     /// Reads the given data as an MP4 file.
     ///
     /// This operation extracts its metadata.
     fn new(
-        input: &'input impl AsRef<[u8]>,
-    ) -> Result<Self, <Self as MetadataProvider<'input>>::ConstructionError> {
+        input: &impl AsRef<[u8]>,
+    ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         parse(input.as_ref())
-    }
-
-    fn exif(&self) -> Option<Result<Exif, ExifFatalError>> {
-        None // MP4 doesn't support Exif
-    }
-
-    fn iptc(&self) -> Option<Result<crate::iptc::Iptc, crate::iptc::error::IptcError>> {
-        None // container has no IPTC support
-    }
-
-    fn xmp(&self) -> Option<Result<Xmp, XmpError>> {
-        let Some(raw_xmp_data) = self.xmp else {
-            log::trace!("No XMP data on this MP4.");
-            return None;
-        };
-
-        let xmp_str = match core::str::from_utf8(raw_xmp_data) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("The provided MP4's XMP data was not valid UTF-8. err: {e}");
-                return Some(Err(XmpError::NotUtf8));
-            }
-        };
-
-        Some(crate::Xmp::new(xmp_str))
     }
 }
 
@@ -88,7 +72,11 @@ fn parse(mut input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
     // check all the other boxes until we find what we want!
     let raw_xmp_bytes = parse_boxes_until_xmp(&mut input);
 
-    Ok(Mp4 { xmp: raw_xmp_bytes })
+    Ok(Mp4 {
+        xmp: Arc::new(RwLock::new(
+            raw_xmp_bytes.map(|raw| MaybeParsedXmp::Raw(raw.to_vec())),
+        )),
+    })
 }
 
 fn parse_boxes_until_xmp<'input>(input: &mut &'input [u8]) -> Option<&'input [u8]> {
@@ -190,12 +178,7 @@ impl core::fmt::Display for Mp4ConstructionError {
 mod tests {
     use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
-    use crate::{
-        MetadataProvider,
-        providers::mp4::Mp4,
-        util::logger,
-        xmp::{Xmp, XmpDocument},
-    };
+    use crate::{MetadataProvider, providers::mp4::Mp4, util::logger, xmp::XmpDocument};
 
     #[test]
     fn parse_real_mp4() {
@@ -205,12 +188,13 @@ mod tests {
 
         let mp4: Mp4 = Mp4::new(&bytes).expect("parsing mp4 should work");
 
-        let xmp: Xmp = mp4
+        let xmp = mp4
             .xmp()
             .expect("this file has XMP embedded")
             .expect("should find the XMP data");
+        let locked_xmp = xmp.read();
 
-        let xmp_document: XmpDocument = xmp.parse().expect("parse XMP");
+        let xmp_document: XmpDocument = locked_xmp.parse().expect("parse XMP");
 
         let common_array_element: XmpElement = XmpElement {
             namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
