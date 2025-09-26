@@ -31,11 +31,7 @@ winnow = "0.7.11"
 #
 # also, the branch listed below is available here:
 # https://github.com/Heinenen/xmltree-rs/tree/ns-attributes
-[dependencies.xmltree]
-version = "0.11.0"
-git = "https://github.com/Heinenen/xmltree-rs"
-rev = "ae40c1d32bbe18892c5e3fdc7f483ac2f6524028" # on branch `ns-attributes`:
-
+xmltree = { package = "raves_xmltree", version = "0.11.0" }
 
 [dev-dependencies]
 env_logger = { version = "0.11.8", default-features = false }
