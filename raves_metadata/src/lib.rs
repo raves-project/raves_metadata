@@ -38,12 +38,13 @@
 
 #![forbid(unsafe_code)]
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
-use iptc::{Iptc, error::IptcError};
+use parking_lot::RwLock;
 
 use crate::{
     exif::{Exif, error::ExifFatalError},
+    iptc::{Iptc, error::IptcError},
     util::{MaybeParsed, MaybeParsedExif, MaybeParsedXmp, Wrapped},
     xmp::{Xmp, error::XmpError},
 };
@@ -108,7 +109,7 @@ pub trait MetadataProvider:
         }
 
         // if we can access the exif... do that.
-        match &*self.exif_raw().read().unwrap() {
+        match &*self.exif_raw().read() {
             // we'll handle this case in a sec.
             Some(MaybeParsed::Raw(_)) => (),
 
@@ -124,7 +125,7 @@ pub trait MetadataProvider:
         // note that this re-uses the code above to avoid writing if
         // possible. (it also prevents "data race" kinda problems)
         let raw = self.exif_raw();
-        let locked = &mut *raw.write().unwrap();
+        let locked = &mut *raw.write();
         match locked {
             // we'll handle this case in a sec.
             Some(MaybeParsed::Raw(r)) => {
@@ -168,7 +169,7 @@ pub trait MetadataProvider:
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn iptc(&self) -> Option<Result<&Iptc, IptcError>> {
+    fn iptc(&self) -> Option<Result<Arc<RwLock<Iptc>>, IptcError>> {
         log::error!(
             "Attempted to parse for IPTC, but IPTC IIC isn't \
             implemented in this library yet. \
@@ -207,7 +208,7 @@ pub trait MetadataProvider:
         }
 
         // if we can access the xmp... do that.
-        match &*self.xmp_raw().read().unwrap() {
+        match &*self.xmp_raw().read() {
             // we'll handle this case in a sec.
             Some(MaybeParsed::Raw(_)) => (),
 
@@ -223,7 +224,7 @@ pub trait MetadataProvider:
         // note that this re-uses the code above to avoid writing if
         // possible. (it also prevents "data race" kinda problems)
         let raw = self.xmp_raw();
-        let locked = &mut *raw.write().unwrap();
+        let locked = &mut *raw.write();
         match locked {
             // we'll handle this case in a sec.
             Some(MaybeParsed::Raw(r)) => {
@@ -273,7 +274,7 @@ pub trait MetadataProviderRaw {
     /// However, users may also prefer it if they'd like to use the raw data
     /// exactly as-is.
     fn exif_raw(&self) -> Arc<RwLock<Option<MaybeParsedExif>>> {
-        Arc::new(RwLock::new(None))
+        Arc::new(const { RwLock::new(None) })
     }
 
     /// Returns the raw `Option<MaybeParsedXmp>` stored inside the provider.
@@ -284,13 +285,15 @@ pub trait MetadataProviderRaw {
     /// However, users may also prefer it if they'd like to use the raw data
     /// exactly as-is.
     fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::new(RwLock::new(None))
+        Arc::new(const { RwLock::new(None) })
     }
 }
 
 /// Internal utility methods.
 pub(crate) mod util {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
+
+    use parking_lot::RwLock;
 
     use crate::exif::Exif;
     use crate::iptc::Iptc;

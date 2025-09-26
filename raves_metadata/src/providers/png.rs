@@ -1,6 +1,7 @@
 //! Contains a metadata provider for the PNG format.
 
-use std::sync::{Arc, RwLock};
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::{
     MetadataProvider, MetadataProviderRaw,
@@ -28,11 +29,11 @@ pub struct Png {
 }
 
 impl MetadataProviderRaw for Png {
-    fn exif_raw(&self) -> std::sync::Arc<std::sync::RwLock<Option<MaybeParsedExif>>> {
+    fn exif_raw(&self) -> Arc<RwLock<Option<MaybeParsedExif>>> {
         Arc::clone(&self.exif)
     }
 
-    fn xmp_raw(&self) -> std::sync::Arc<std::sync::RwLock<Option<MaybeParsedXmp>>> {
+    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
         Arc::clone(&self.xmp)
     }
 }
@@ -437,7 +438,7 @@ mod tests {
             .xmp()
             .expect("this PNG has XMP")
             .expect("get XMP from PNG");
-        let locked_xmp = xmp.read().unwrap();
+        let locked_xmp = xmp.read();
 
         let parsed_xmp = (*locked_xmp).parse().expect("parse XMP data");
 
@@ -470,7 +471,7 @@ mod tests {
             .exif()
             .expect("PNG contains Exif")
             .expect("Exif is well-formed");
-        let exif_locked = exif.read().unwrap();
+        let exif_locked = exif.read();
 
         let a = exif_locked.ifds.first().unwrap();
 
