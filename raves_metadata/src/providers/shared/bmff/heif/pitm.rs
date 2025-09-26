@@ -12,9 +12,9 @@ use crate::providers::shared::{
 
 /// A box that indicates the primary item of the file.
 pub struct PrimaryItemBox {
-    pub extends_full_box: FullBox,
+    pub _extends_full_box: FullBox,
 
-    pub item_id: u32, // u16 if ver. 0
+    pub _item_id: u32, // u16 if ver. 0
 }
 
 impl PrimaryItemBox {
@@ -39,13 +39,13 @@ impl PrimaryItemBox {
 
         // return self
         Ok(Self {
-            item_id: if extends_full_box.version == 0 {
+            _item_id: if extends_full_box.version == 0 {
                 be_u16.context(desc("item id (u16)")).parse_next(input)? as u32
             } else {
                 be_u32.context(desc("item id (u32)")).parse_next(input)?
             },
 
-            extends_full_box,
+            _extends_full_box: extends_full_box,
         })
     }
 }

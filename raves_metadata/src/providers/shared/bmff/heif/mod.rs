@@ -57,7 +57,7 @@ impl MetadataProviderRaw for HeifLike {
     }
 }
 
-impl<'input> MetadataProvider for HeifLike {
+impl MetadataProvider for HeifLike {
     type ConstructionError = HeifLikeConstructionError;
 
     /// DO NOT CALL THIS.
@@ -319,7 +319,7 @@ fn find_metadata<'input>(
     item_info: ItemInfoBox,
     item_location: ItemLocationBox,
     maybe_item_data: Option<&'input [u8]>,
-    maybe_primary_item: Option<PrimaryItemBox>,
+    _maybe_primary_item: Option<PrimaryItemBox>,
 ) -> Result<FindMetadataReturnValues<'input>, HeifLikeConstructionError> {
     // make an index of what items we've got
     let item_infos_len = item_info.item_infos.len();
@@ -524,22 +524,22 @@ fn update_with_item<'input>(
     log::debug!("passed Exif");
 
     // xmp (using mime)
-    if let Some(mime) = item.item_info.mime() {
-        if mime == "application/rdf+xml" || mime == "application/xmp+xml" {
-            log::trace!("Updated w/ XMP when using MIME!");
-            ret.xmp = Some(blob);
-            return Ok(());
-        }
+    if let Some(mime) = item.item_info.mime()
+        && (mime == "application/rdf+xml" || mime == "application/xmp+xml")
+    {
+        log::trace!("Updated w/ XMP when using MIME!");
+        ret.xmp = Some(blob);
+        return Ok(());
     }
     log::debug!("passed XMP (MIME)");
 
     // xmp (when using item)
-    if let Some(item_type) = item.item_info.item_type() {
-        if [b"xif\0", b"XMP ", b"xmp "].contains(&&item_type) {
-            log::trace!("Updated w/ XMP using item type: {item_type:?}");
-            ret.xmp = Some(blob);
-            return Ok(());
-        }
+    if let Some(item_type) = item.item_info.item_type()
+        && [b"xif\0", b"XMP ", b"xmp "].contains(&&item_type)
+    {
+        log::trace!("Updated w/ XMP using item type: {item_type:?}");
+        ret.xmp = Some(blob);
+        return Ok(());
     }
     log::debug!("passed XMP (item)");
 

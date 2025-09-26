@@ -33,7 +33,7 @@ pub trait XmpElementExt {
     ///
     /// Note that, because we don't know the schema, all values become
     /// `XmpValue::Text`, and editing will be more difficult.
-    fn value_generic(&self) -> XmpElementResult;
+    fn value_generic(&self) -> XmpElementResult<'_>;
 
     fn to_xmp_element<'xmp>(&'xmp self, value: XmpValue<'xmp>) -> XmpElementResult<'xmp>;
 }

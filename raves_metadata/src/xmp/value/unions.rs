@@ -117,10 +117,8 @@ pub fn value_union<'xml>(
         // this was an unexpected field...
         //
         // parse it and push it accordingly
-        if !known_field {
-            if let Some(parsed_c) = value_struct_field(c, None) {
-                unexpected_fields.push(parsed_c);
-            }
+        if !known_field && let Some(parsed_c) = value_struct_field(c, None) {
+            unexpected_fields.push(parsed_c);
         }
     }
 
