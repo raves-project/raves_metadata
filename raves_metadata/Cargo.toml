@@ -13,9 +13,11 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-winnow = "0.7.11"
-raves_metadata_types = { path = "../raves_metadata_types" }
 log = "0.4.27"
+parking_lot = "0.12.4"
+raves_metadata_types = { path = "../raves_metadata_types" }
+winnow = "0.7.11"
+
 
 # this is a soft fork of the `xmltree` crate.
 #

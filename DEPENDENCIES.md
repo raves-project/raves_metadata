@@ -19,6 +19,21 @@ Don't add dependencies to this crate unless required for manual parsing. System/
 
 This crate provides runtime logging to a "logger implementation." I'd usually prefer `tracing`, but it's slower, and we can't even use its instrumentation due to the `syn` requirement. `log` has no dependencies.
 
+#### `parking_lot`
+
+Implements a poison-free `RwLock`.
+
+Unfortunately, `parking_lot` adds quite a few dependencies:
+
+- `lock_api`: primitives for defining reusable lock types.
+  - `scope_guard`: runs a closure when things fall out of scope, even during an unwinding panic.
+- `parking_lot_core`: the reusable "thread parking" parts of `parking_lot`. we uhh. don't use it
+  - `cfg_if`: simplifies `cfg` usage for feature flags and other nonsense
+  - `libc`: it's libc
+  - `smallvec`: vecs that are stack-alloc'd when small, but heap-alloc'd when big
+
+On the other hand, we can completely replace this dependency if (when?) [Rust's `sync_nonpoison` feature](https://github.com/rust-lang/rust/issues/134645) stabilizes. So, hopefully that's soon.
+
 #### `xmltree`
 
 Parses XML, because that's a little outta scope at the moment.
