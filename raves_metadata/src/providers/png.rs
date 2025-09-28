@@ -437,15 +437,17 @@ mod tests {
             .expect("get XMP from PNG");
         let locked_xmp = xmp.read();
 
-        let parsed_xmp = (*locked_xmp).parse().expect("parse XMP data");
-
         assert_eq!(
-            parsed_xmp.values_ref().len(),
+            locked_xmp.document().values_ref().len(),
             1_usize,
             "should only parse that one struct"
         );
         assert_eq!(
-            parsed_xmp.values_ref().first().expect("must have an item"),
+            locked_xmp
+                .document()
+                .values_ref()
+                .first()
+                .expect("must have an item"),
             &XmpElement {
                 namespace: "https://barretts.club".into(),
                 prefix: "my_ns".into(),

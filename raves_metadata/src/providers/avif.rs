@@ -60,9 +60,7 @@ mod tests {
             .expect("XMP should be present");
         let xmp_locked = xmp.read();
 
-        // parse xmp
-        let xmp_doc = xmp_locked.parse().expect("xmp is valid");
-        let mut xmp_values = xmp_doc.values_ref().to_vec();
+        let mut xmp_values = xmp_locked.document().values_ref().to_vec();
         xmp_values.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap());
 
         assert_eq!(
@@ -124,8 +122,7 @@ mod tests {
             .expect("XMP should be present");
         let xmp_locked = xmp.read();
 
-        let xmp_doc = xmp_locked.parse().expect("xmp is valid");
-        let mut xmp_values = xmp_doc.values_ref().to_vec();
+        let mut xmp_values = xmp_locked.document().values_ref().to_vec();
         xmp_values.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap());
 
         assert_eq!(

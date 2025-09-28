@@ -177,7 +177,7 @@ impl core::fmt::Display for Mp4ConstructionError {
 mod tests {
     use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
-    use crate::{MetadataProvider, providers::mp4::Mp4, util::logger, xmp::XmpDocument};
+    use crate::{MetadataProvider, providers::mp4::Mp4, util::logger};
 
     #[test]
     fn parse_real_mp4() {
@@ -192,8 +192,6 @@ mod tests {
             .expect("this file has XMP embedded")
             .expect("should find the XMP data");
         let locked_xmp = xmp.read();
-
-        let xmp_document: XmpDocument = locked_xmp.parse().expect("parse XMP");
 
         let common_array_element: XmpElement = XmpElement {
             namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
@@ -232,7 +230,7 @@ mod tests {
             },
         ]);
 
-        let mut got = xmp_document.values_ref().to_vec();
+        let mut got = locked_xmp.document().values_ref().to_vec();
         got.sort_by_key(|a| a.name.clone());
 
         assert_eq!(got, expected);

@@ -21,7 +21,7 @@ use raves_metadata_types::{
     xmp::{XmpElement, XmpPrimitive, XmpValue},
     xmp_parsing_types::XmpKind as Kind,
 };
-use xmltree::{AttributeName, Element, XMLNode};
+use xmltree::{AttributeName, Element};
 
 use crate::xmp::{
     error::XmpError,
@@ -42,7 +42,7 @@ pub mod types {
 }
 
 /// An XMP document.
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub struct XmpDocument(Vec<XmpElement>);
 
 impl XmpDocument {
@@ -69,9 +69,9 @@ impl XmpDocument {
 }
 
 /// An XMP parser.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub struct Xmp {
-    document: Element,
+    document: XmpDocument,
 }
 
 impl PartialOrd for Xmp {
@@ -85,73 +85,22 @@ impl PartialOrd for Xmp {
     }
 }
 
-// dumb recursive hash
-impl core::hash::Hash for Xmp {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        #[inline(always)] // try to prevent recursion from sucking so bad
-        fn inner(elem: &Element, state: &mut impl core::hash::Hasher) {
-            // attributes
-            for (attr_key, attr_value) in &elem.attributes {
-                attr_key.hash(state);
-                attr_value.hash(state);
-            }
-
-            // children
-            for n in &elem.children {
-                match n {
-                    XMLNode::Element(inner_element) => {
-                        // recurse lol
-                        inner(inner_element, state);
-                    }
-
-                    XMLNode::Comment(c) => c.hash(state),
-                    XMLNode::CData(cd) => cd.hash(state),
-                    XMLNode::Text(t) => t.hash(state),
-
-                    XMLNode::ProcessingInstruction(a, b) => {
-                        a.hash(state);
-                        b.hash(state);
-                    }
-                }
-            }
-
-            // name
-            elem.name.hash(state);
-
-            // namespace
-            elem.namespace.hash(state);
-
-            // namespaces
-            if let Some(ref n) = elem.namespaces {
-                n.0.hash(state);
-            }
-
-            // prefix
-            elem.prefix.hash(state);
-        }
-
-        inner(&self.document, state);
-    }
-}
-
 impl Xmp {
     /// Parses the given raw XML string into a collection of XMP values.
     pub fn new(raw_xml: &str) -> Result<Self, XmpError> {
-        // grab the document from XML
-        let document: Element = Element::parse(raw_xml.as_bytes())?;
+        // grab the root element of the XML
+        let element: Element = Element::parse(raw_xml.as_bytes())?;
+
+        // parse it into a document
+        let document = parse_xmp(&element).map(XmpDocument)?;
 
         // save it in the struct for use in the parsing stage
         Ok(Self { document })
     }
 
     /// Returns the underlying XML document.
-    pub fn document(&self) -> &Element {
+    pub fn document(&self) -> &XmpDocument {
         &self.document
-    }
-
-    /// Parses the XMP document and returns a collection of XMP values.
-    pub fn parse(&self) -> Result<XmpDocument, XmpError> {
-        parse_xmp(self.document()).map(XmpDocument)
     }
 }
 
@@ -410,7 +359,7 @@ fn parse_element(element: &Element) -> Option<XmpElement> {
 mod tests {
     use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
-    use crate::xmp::Xmp;
+    use crate::xmp::{Xmp, XmpDocument};
 
     /// We're fine with a blank description... right?
     #[test]
@@ -424,13 +373,9 @@ mod tests {
         let xmp = Xmp::new(
             r#"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:ns="ns:myName/" /></rdf:RDF>"#,
         )
-        .expect("`xmltree` should parse the XML correctly");
+        .expect("should be able to parse blank `rdf:Description`");
 
-        let parsed = xmp
-            .parse()
-            .expect("`raves_metadata` should be able to parse blank `rdf:Description`");
-
-        assert_eq!(parsed.0, Vec::new());
+        assert_eq!(*xmp.document(), XmpDocument(Vec::new()));
     }
 
     /// `rdf:Description` is recommended to be serialized with an `rdf:about`
@@ -451,13 +396,9 @@ mod tests {
         </rdf:Description>
     </rdf:RDF>"#,
         )
-        .expect("`xmltree` should parse the XML correctly");
+        .expect("should parse XMP correctly");
 
-        let parsed_xmp = xmp
-            .parse()
-            .expect("`raves_metadata` should parse XMP correctly");
-
-        assert_eq!(parsed_xmp.0, Vec::new());
+        assert_eq!(*xmp.document(), XmpDocument(Vec::new()));
     }
 
     /// Ensures that the parser is okay without an `rdf:about` attribute.
@@ -478,12 +419,10 @@ mod tests {
         </rdf:Description>
     </rdf:RDF>"#,
         )
-        .expect("`xmltree` should parse the XML correctly");
+        .expect("shouldn't choke on description with no `rdf:about`");
 
         assert_eq!(
-            xmp.parse()
-                .expect("`raves_metadata` shouldn't choke on description with no `rdf:about`")
-                .0,
+            xmp.document().0,
             vec![XmpElement {
                 namespace: "https://github.com/onkoe".into(),
                 prefix: "my_ns".into(),
@@ -520,12 +459,11 @@ mod tests {
         </x:xmpmeta>
         <?xpacket end="w"?>"#;
 
-        let xmp: Xmp = Xmp::new(RAW_XML).expect("`xmltree` should parse the XML correctly");
+        let xmp: Xmp =
+            Xmp::new(RAW_XML).expect("shouldn't choke on description with no `rdf:about`");
 
         assert_eq!(
-            xmp.parse()
-                .expect("`raves_metadata` shouldn't choke on description with no `rdf:about`")
-                .0,
+            xmp.document().0,
             vec![XmpElement {
                 namespace: "http://purl.org/dc/elements/1.1/".into(),
                 prefix: "dc".into(),
