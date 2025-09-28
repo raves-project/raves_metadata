@@ -3,7 +3,7 @@
 //!
 //! Here's a nice resource explaining the file structure:
 //!
-//! https://github.com/spacestation93/heif_howto
+//! <https://github.com/spacestation93/heif_howto>
 
 use std::{collections::HashMap, fmt::Write as _, sync::Arc};
 

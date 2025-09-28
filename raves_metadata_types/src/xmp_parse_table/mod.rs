@@ -8,7 +8,7 @@ pub mod types;
 
 /// A pair of a property's namespace URL and its element name.
 ///
-/// Ex: ("http://ns.adobe.com/xap/1.0/", "CreateDate") for `xmp:CreateDate`
+/// Ex: `("http://ns.adobe.com/xap/1.0/", "CreateDate")` for `xmp:CreateDate`
 #[derive(Hash, PartialEq, Eq)]
 pub struct XmpNamespaceNamePair(pub (&'static str, &'static str));
 
