@@ -325,7 +325,7 @@ impl core::error::Error for MovConstructionError {}
 mod tests {
     use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue};
 
-    use crate::{MetadataProvider, providers::mov::Mov, util::logger, xmp::XmpDocument};
+    use crate::{MetadataProvider, providers::mov::Mov, util::logger};
 
     /// Ensures that a real `.mov` parses correctly and yields its XMP metadata.
     #[test]
@@ -341,10 +341,9 @@ mod tests {
             .expect("the xmp ctor should succeed");
         let xmp_locked = xmp.read();
 
-        let document: XmpDocument = xmp_locked.parse().expect("xmp parsing should succeed");
-
         assert_eq!(
-            document
+            xmp_locked
+                .document()
                 .values_ref()
                 .iter()
                 .find(|v| v.name == "creator")

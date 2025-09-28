@@ -202,7 +202,7 @@ pub fn value_struct_field(
 
 #[cfg(test)]
 mod tests {
-    use crate::xmp::{Xmp, XmpDocument};
+    use crate::xmp::Xmp;
 
     /// The parser should be able to handle several different layouts of
     /// structs.
@@ -253,9 +253,6 @@ mod tests {
         )
         .unwrap();
 
-        let parsed: XmpDocument = xmp
-            .parse()
-            .expect("`raves_metadata` should parse the description correctly");
-        assert_eq!(parsed.values_ref().len(), 5);
+        assert_eq!(xmp.document().values_ref().len(), 5);
     }
 }

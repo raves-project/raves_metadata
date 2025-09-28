@@ -330,18 +330,15 @@ mod tests {
         // construct webp representation
         let webp: Webp = Webp::new(bytes).unwrap();
 
-        // construct the xmp
+        // parse the xmp
         let xmp = webp
             .xmp()
             .expect("XMP is supported _and_ provided in the file")
             .expect("the XMP should construct correctly");
         let locked_xmp = xmp.read();
 
-        // parse xmp
-        let xmp_doc = locked_xmp.parse().expect("xmp is valid");
-
         assert_eq!(
-            xmp_doc.values_ref().first().unwrap(),
+            locked_xmp.document().values_ref().first().unwrap(),
             &XmpElement {
                 namespace: "https://barretts.club".into(),
                 prefix: "my_ns".into(),
@@ -372,19 +369,16 @@ mod tests {
         // construct webp representation
         let webp: Webp = Webp::new(bytes).unwrap();
 
-        // construct the xmp
+        // parse the xmp
         let xmp = webp
             .xmp()
             .expect("XMP is supported _and_ provided in the file")
             .expect("the XMP should construct correctly");
         let locked_xmp = xmp.read();
 
-        // parse xmp
-        let xmp_doc = locked_xmp.parse().expect("xmp is valid");
-
         // note: this is the same check as one in the `xmp` module
         assert_eq!(
-            xmp_doc.values_ref().to_vec(),
+            locked_xmp.document().values_ref().to_vec(),
             vec![XmpElement {
                 namespace: "http://purl.org/dc/elements/1.1/".into(),
                 prefix: "dc".into(),

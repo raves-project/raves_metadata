@@ -1,5 +1,5 @@
 use raves_metadata::xmp::{
-    Xmp, XmpDocument,
+    Xmp,
     types::{XmpPrimitive, XmpValue, XmpValueStructField},
 };
 
@@ -27,15 +27,10 @@ fn known_struct_type() {
         </rdf:Description>
     </rdf:RDF>"#,
     )
-    .expect("`xmltree` should parse the XML correctly");
-
-    // run our parser over it
-    let parsed: XmpDocument = xmp
-        .parse()
-        .expect("`raves_metadata` can parse a known struct");
+    .expect("`raves_metadata` can parse a known struct");
 
     // try grabbing it as a struct
-    let maybe_struct_val = parsed.values_ref().first().unwrap();
+    let maybe_struct_val = xmp.document().values_ref().first().unwrap();
     let XmpValue::Struct(mut s) = maybe_struct_val.clone().value else {
         panic!("not a struct! got: {maybe_struct_val:#?}");
     };
