@@ -14,10 +14,10 @@ use crate::xmp::{
 /// Parses an element as a struct with fields.
 ///
 /// Each field is parsed recursively.
-pub fn value_struct<'elem>(
-    element: &'elem Element,
+pub fn value_struct(
+    element: &Element,
     maybe_schema: Option<&'static Kind>,
-) -> Result<XmpElement<'elem>, XmpParsingError<'elem>> {
+) -> Result<XmpElement, XmpParsingError> {
     // helper closure: grab a field from the schema
     let get_field_info = |field_ns: &Option<&str>, field_name: &str| -> Option<&Field> {
         let Some(Kind::Struct(schema_fields)) = maybe_schema else {
@@ -154,10 +154,10 @@ pub fn value_struct<'elem>(
 }
 
 /// Parses an element as a struct field.
-pub fn value_struct_field<'xml>(
-    element: &'xml Element,
+pub fn value_struct_field(
+    element: &Element,
     maybe_field_kind: Option<&'static Field>,
-) -> Option<XmpValueStructField<'xml>> {
+) -> Option<XmpValueStructField> {
     // if we know the field we're workin with, we can apply its schema.
     //
     // otherwise, we'll have to guess carefully...
@@ -174,8 +174,8 @@ pub fn value_struct_field<'xml>(
 
         // get em from the field
         None => (
-            element.name.clone().into(),
-            element.namespace.clone().map(|s| s.into()),
+            element.name.clone(),
+            element.namespace.clone(),
             match element.value_generic() {
                 Ok(s) => s,
                 Err(e) => {

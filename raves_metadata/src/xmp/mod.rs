@@ -43,11 +43,11 @@ pub mod types {
 
 /// An XMP document.
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
-pub struct XmpDocument<'xml>(Vec<XmpElement<'xml>>);
+pub struct XmpDocument(Vec<XmpElement>);
 
-impl<'xml> XmpDocument<'xml> {
+impl XmpDocument {
     /// Returns the XMP values in this document.
-    pub fn values_ref(&self) -> &[XmpElement<'_>] {
+    pub fn values_ref(&self) -> &[XmpElement] {
         &self.0
     }
 
@@ -61,7 +61,7 @@ impl<'xml> XmpDocument<'xml> {
     ///
     /// Also, values you may set might not be valid XMP - please use this
     /// method with care.
-    pub fn values_mut<'here>(&'here mut self) -> &'here mut [XmpElement<'xml>] {
+    pub fn values_mut(&mut self) -> &mut [XmpElement] {
         &mut self.0
     }
 
@@ -150,7 +150,7 @@ impl Xmp {
     }
 
     /// Parses the XMP document and returns a collection of XMP values.
-    pub fn parse(&self) -> Result<XmpDocument<'_>, XmpError> {
+    pub fn parse(&self) -> Result<XmpDocument, XmpError> {
         parse_xmp(self.document()).map(XmpDocument)
     }
 }
@@ -167,7 +167,7 @@ const RDF_NAMESPACE: &str = r"http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const X_NAMESPACE: &str = r"adobe:ns:meta/";
 
 /// Parses the XMP document.
-fn parse_xmp(document: &Element) -> Result<Vec<XmpElement<'_>>, XmpError> {
+fn parse_xmp(document: &Element) -> Result<Vec<XmpElement>, XmpError> {
     // let's start by trying to grab the elements before the descriptions.
     //
     // the first one is optional: `x:xmpmeta`
@@ -290,13 +290,13 @@ fn parse_xmp(document: &Element) -> Result<Vec<XmpElement<'_>>, XmpError> {
                 .flat_map(|c| c.as_element())
                 .flat_map(parse_element)
                 .chain(parsed_attrs)
-                .collect::<Vec<XmpElement<'_>>>()
+                .collect::<Vec<XmpElement>>()
         })
         .collect())
 }
 
 /// Parses an element's attribute into an `XmpValue`.
-fn parse_attribute<'xml>((key, value): (AttributeName, String)) -> Option<XmpElement<'xml>> {
+fn parse_attribute((key, value): (AttributeName, String)) -> Option<XmpElement> {
     let ns = match key.namespace {
         Some(ref ns) => ns.clone(),
         None => {
@@ -340,7 +340,7 @@ fn parse_attribute<'xml>((key, value): (AttributeName, String)) -> Option<XmpEle
                     }
                 };
 
-                parse_primitive(value.into(), prim)
+                parse_primitive(value, prim)
                     .inspect_err(|e| {
                         log::error!("Failed to parse primitive attribute with schema: {e}")
                     })
@@ -350,14 +350,14 @@ fn parse_attribute<'xml>((key, value): (AttributeName, String)) -> Option<XmpEle
                 // we don't have a schema for this element.
                 //
                 // let's create a generic `XmpValue` for it.
-                XmpValue::Simple(XmpPrimitive::Text(value.into()))
+                XmpValue::Simple(XmpPrimitive::Text(value))
             }
         };
 
         XmpElement {
-            namespace: ns.into(),
-            prefix: prefix.into(),
-            name: key.local_name.into(),
+            namespace: ns,
+            prefix,
+            name: key.local_name,
 
             value,
         }
@@ -365,7 +365,7 @@ fn parse_attribute<'xml>((key, value): (AttributeName, String)) -> Option<XmpEle
 }
 
 /// Parses an individual XMP element into an `XmpValue`.
-fn parse_element(element: &Element) -> Option<XmpElement<'_>> {
+fn parse_element(element: &Element) -> Option<XmpElement> {
     log::trace!("Parsing element `{}`.", element.name);
 
     // a namespace is required for parsing.

@@ -40,7 +40,7 @@ fn known_struct_type() {
         panic!("not a struct! got: {maybe_struct_val:#?}");
     };
 
-    s.sort_by_key(|field| field.ident());
+    s.sort_by_key(|field| field.ident().to_string());
 
     // ensure the values are correct
     assert_eq!(s, {
@@ -62,7 +62,7 @@ fn known_struct_type() {
             },
         ];
 
-        v.sort_by_key(|field| field.ident());
+        v.sort_by_key(|field| field.ident().to_string());
         v
     });
 }

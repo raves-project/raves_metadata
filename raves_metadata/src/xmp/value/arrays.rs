@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use raves_metadata_types::{
     xmp::XmpValue,
     xmp_parsing_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
@@ -32,10 +30,10 @@ use crate::xmp::{
 ///
 /// We should pick a matching `xml:lang` to what a user asks for, or,
 /// otherwise, grab the `x-default` option.
-pub fn value_alternatives<'xml>(
-    element: &'xml Element,
+pub fn value_alternatives(
+    element: &Element,
     _maybe_ty: Option<&'static Kind>, // TODO: use for better parsing
-) -> XmpElementResult<'xml> {
+) -> XmpElementResult {
     // try to find an `rdf:Alt`
     let alt: &Element = element
         .children
@@ -45,8 +43,8 @@ pub fn value_alternatives<'xml>(
         .find(|(e, ns)| ns.as_str() == RDF_NAMESPACE && e.name.as_str() == "Alt")
         .map(|(e, _)| e)
         .ok_or(XmpParsingError::ArrayNoInnerCollectionType {
-            element_name: Cow::from(&element.name),
-            children: Cow::from(&element.children),
+            element_name: element.name.clone(),
+            children: element.children.clone(),
         })?;
 
     // each `rdf:li` sub-element will become a tuple: (parsed_inner, case),
@@ -115,7 +113,7 @@ pub fn value_alternatives<'xml>(
                 return Some((
                     tag_primitive,
                     li.to_xmp_element(
-                        parse_primitive(li.get_text()?, &Prim::Text)
+                        parse_primitive(li.get_text()?.to_string(), &Prim::Text)
                             .inspect_err(|e| log::error!("Couldn't parse primitive! err: {e}"))
                             .ok()?,
                     )
@@ -137,10 +135,10 @@ pub fn value_alternatives<'xml>(
         log::error!("Can't create list of alternatives - no default was found.");
         log::error!("The options found were: {parsed_lis:#?}");
         return Err(XmpParsingError::ArrayAltNoDefault {
-            element_name: Cow::from(&element.name),
-            alternatives_array: Cow::from_iter(parsed_lis.iter().map(
+            element_name: element.name.clone(),
+            alternatives_array: Vec::from_iter(parsed_lis.iter().map(
                 |((_tag_idents, tag_value), parsed_li_elem)| {
-                    (Cow::from(*tag_value), parsed_li_elem.clone())
+                    ((*tag_value).clone(), parsed_li_elem.clone())
                 },
             )),
         });
@@ -151,7 +149,7 @@ pub fn value_alternatives<'xml>(
         chosen: (chosen_tag_value.into(), Box::new(chosen_value)),
         list: parsed_lis
             .into_iter()
-            .map(|((_tag_idents, tag_value), value)| (Cow::from(tag_value), value))
+            .map(|((_tag_idents, tag_value), value)| (tag_value.clone(), value))
             .collect(),
     };
 
@@ -173,10 +171,10 @@ pub fn value_alternatives<'xml>(
 ///      </rdf:Bag>
 /// </ns:element>
 /// ```
-pub fn value_unordered_array<'xml>(
-    element: &'xml Element,
+pub fn value_unordered_array(
+    element: &Element,
     maybe_ty: Option<&'static Kind>,
-) -> XmpElementResult<'xml> {
+) -> XmpElementResult {
     value_array(element, maybe_ty, false)
 }
 
@@ -194,10 +192,7 @@ pub fn value_unordered_array<'xml>(
 ///      </rdf:Seq>
 /// </ns:element>
 /// ```
-pub fn value_ordered_array<'xml>(
-    element: &'xml Element,
-    maybe_ty: Option<&'static Kind>,
-) -> XmpElementResult<'xml> {
+pub fn value_ordered_array(element: &Element, maybe_ty: Option<&'static Kind>) -> XmpElementResult {
     value_array(element, maybe_ty, true)
 }
 
@@ -205,11 +200,11 @@ pub fn value_ordered_array<'xml>(
 ///
 /// `ordered` is `true` if `Kind::OrderedArray`, `false` if
 /// `Kind::UnorderedArray`.
-fn value_array<'xml>(
-    element: &'xml Element,
+fn value_array(
+    element: &Element,
     maybe_ty: Option<&'static Kind>,
     ordered: bool,
-) -> XmpElementResult<'xml> {
+) -> XmpElementResult {
     let (collection_target, collection_ctor): (&'static str, fn(_) -> _) = match ordered {
         true => ("Seq", XmpValue::OrderedArray),
         false => ("Bag", XmpValue::UnorderedArray),
@@ -224,8 +219,8 @@ fn value_array<'xml>(
         .find(|(e, ns)| ns.as_str() == RDF_NAMESPACE && e.name.as_str() == collection_target)
         .map(|(e, _)| e)
         .ok_or(XmpParsingError::ArrayNoInnerCollectionType {
-            element_name: Cow::from(&element.name),
-            children: Cow::from_iter(element.children.clone().into_iter()),
+            element_name: element.name.clone(),
+            children: element.children.clone(),
         })
         .inspect_err(|e| log::error!("Couldn't find collection container! err: {e}"))?;
 
@@ -241,7 +236,7 @@ fn value_array<'xml>(
             weird_kind => {
                 log::error!("Weird schema given to array parser: {weird_kind:#?}");
                 return Err(XmpParsingError::ArrayGivenNonArraySchema {
-                    element_name: Cow::from(&element.name),
+                    element_name: element.name.clone(),
                     weird_schema: weird_kind,
                 });
             }

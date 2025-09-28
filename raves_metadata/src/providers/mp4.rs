@@ -224,8 +224,7 @@ mod tests {
                         .into_iter()
                         .map(|v| {
                             let mut c = common_array_element.clone();
-                            c.value =
-                                XmpValue::Simple(XmpPrimitive::Text(format!("tag {v}").into()));
+                            c.value = XmpValue::Simple(XmpPrimitive::Text(format!("tag {v}")));
                             c
                         })
                         .collect(),

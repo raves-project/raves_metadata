@@ -1,17 +1,14 @@
 // /// Can occur while parsing XMP metadata into values.
 
-use std::{
-    borrow::Cow,
-    num::{ParseFloatError, ParseIntError},
-};
+use std::num::{ParseFloatError, ParseIntError};
 
 use raves_metadata_types::{
     xmp::{XmpElement, XmpValue},
     xmp_parsing_types::{XmpKind, XmpKindStructField},
 };
 
-pub type XmpValueResult<'xml> = Result<XmpValue<'xml>, XmpParsingError<'xml>>;
-pub type XmpElementResult<'xml> = Result<XmpElement<'xml>, XmpParsingError<'xml>>;
+pub type XmpValueResult = Result<XmpValue, XmpParsingError>;
+pub type XmpElementResult = Result<XmpElement, XmpParsingError>;
 
 use std::sync::Arc;
 
@@ -80,7 +77,7 @@ impl From<xmltree::ParseError> for XmpError {
 /// provides logs, but doesn't give the user direct error values to sift
 /// through.
 #[derive(Debug)]
-pub enum XmpParsingError<'xml> {
+pub enum XmpParsingError {
     //
     //
     //
@@ -90,10 +87,10 @@ pub enum XmpParsingError<'xml> {
     //
     /// Couldn't create an `XmpElement` from the `self: &Element` and
     /// `value: Value` pair, as `self` lacks a namespace.
-    XmpElementCreationNoNamespace { element_name: Cow<'xml, str> },
+    XmpElementCreationNoNamespace { element_name: String },
 
     /// Same as above, except `self` lacks a prefix.
-    XmpElementCreationNoPrefix { element_name: Cow<'xml, str> },
+    XmpElementCreationNoPrefix { element_name: String },
 
     //
     //
@@ -106,17 +103,17 @@ pub enum XmpParsingError<'xml> {
     ///
     /// However, it wasn't a matching value! The contained value was what we
     /// got.
-    PrimitiveUnknownBool(Cow<'xml, str>),
+    PrimitiveUnknownBool(String),
 
     /// We were told to parse out an Integer, but it failed to parse
     /// correctly. Contained value is what we got and the `core` parsing error.
-    PrimitiveIntegerParseFail(Cow<'xml, str>, ParseIntError),
+    PrimitiveIntegerParseFail(String, ParseIntError),
 
     /// We were told to parse out a float (Real), but didn't parse right.
-    PrimitiveRealParseFail(Cow<'xml, str>, ParseFloatError),
+    PrimitiveRealParseFail(String, ParseFloatError),
 
     /// A primitive with a known text value had no text.
-    PrimitiveTextHadNoText { element_name: Cow<'xml, str> },
+    PrimitiveTextHadNoText { element_name: String },
 
     //
     //
@@ -128,12 +125,12 @@ pub enum XmpParsingError<'xml> {
     /// Unions are currently expected to have only a `Text` discriminant, but
     /// this value was described by another `Kind`.
     UnionDiscriminantWasntText {
-        element_name: Cow<'xml, str>,
+        element_name: String,
         discriminant_kind: &'static XmpKindStructField,
     },
 
     /// The union had no discriminant, so we couldn't see how to parse it.
-    UnionNoDiscriminant { element_name: Cow<'xml, str> },
+    UnionNoDiscriminant { element_name: String },
 
     //
     //
@@ -145,16 +142,16 @@ pub enum XmpParsingError<'xml> {
     /// Couldn't find an inner collection type, like `rdf:Alt`, `rdf:Bag` or
     /// `rdf:Seq`.
     ArrayNoInnerCollectionType {
-        element_name: Cow<'xml, str>,
-        children: Cow<'xml, [xmltree::XMLNode]>,
+        element_name: String,
+        children: Vec<xmltree::XMLNode>,
     },
 
     /// "Alternatives" arrays must have a default value.
     ///
     /// This one didn't.
     ArrayAltNoDefault {
-        element_name: Cow<'xml, str>,
-        alternatives_array: Cow<'xml, [(Cow<'xml, str>, XmpElement<'xml>)]>,
+        element_name: String,
+        alternatives_array: Vec<(String, XmpElement)>,
     },
 
     /// The list (un/ordered array) parser was given a schema for, e.g., a
@@ -162,7 +159,7 @@ pub enum XmpParsingError<'xml> {
     ///
     /// We can't continue parsing that since we need to know our internal type.
     ArrayGivenNonArraySchema {
-        element_name: Cow<'xml, str>,
+        element_name: String,
         weird_schema: &'static XmpKind,
     },
 
@@ -176,16 +173,16 @@ pub enum XmpParsingError<'xml> {
     //
     /// We couldn't get the text for an element that was expected to be a
     /// primitive.
-    GenericLikelyPrimitiveHadNoText { element_name: Cow<'xml, str> },
+    GenericLikelyPrimitiveHadNoText { element_name: String },
 
     /// We looked through all the possible types this value could have, but it
     /// simply had no information inside it.
     ///
     /// Thus, we returned a blank type. (which isn't useful at all)
-    GenericNoOtherOption { element_name: Cow<'xml, str> },
+    GenericNoOtherOption { element_name: String },
 }
 
-impl core::fmt::Display for XmpParsingError<'_> {
+impl core::fmt::Display for XmpParsingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             //
@@ -311,4 +308,4 @@ impl core::fmt::Display for XmpParsingError<'_> {
     }
 }
 
-impl core::error::Error for XmpParsingError<'_> {}
+impl core::error::Error for XmpParsingError {}
