@@ -21,7 +21,7 @@ pub mod xmp {
     /// An element parsed from the XMP.
     ///
     /// Contains identifiers and a value.
-    #[derive(Clone, Debug, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
     pub struct XmpElement {
         pub namespace: String,
         pub prefix: String,
@@ -72,8 +72,39 @@ pub mod xmp {
         },
     }
 
+    impl core::hash::Hash for XmpValue {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            match self {
+                XmpValue::Simple(xmp_primitive) => match xmp_primitive {
+                    XmpPrimitive::Real(float) => state.write(float.to_ne_bytes().as_slice()),
+                    XmpPrimitive::Boolean(b) => b.hash(state),
+                    XmpPrimitive::Date(t) => t.hash(state),
+                    XmpPrimitive::Integer(i) => i.hash(state),
+                    XmpPrimitive::Text(t) => t.hash(state),
+                },
+                XmpValue::Struct(xmp_value_struct_fields) => xmp_value_struct_fields.hash(state),
+                XmpValue::Union {
+                    discriminant,
+                    expected_fields,
+                    unexpected_fields,
+                } => {
+                    discriminant.hash(state);
+                    expected_fields.hash(state);
+                    unexpected_fields.hash(state);
+                }
+                XmpValue::UnorderedArray(xmp_elements) | XmpValue::OrderedArray(xmp_elements) => {
+                    xmp_elements.hash(state)
+                }
+                XmpValue::Alternatives { chosen, list } => {
+                    chosen.hash(state);
+                    list.hash(state);
+                }
+            }
+        }
+    }
+
     /// One field of an XMP struct.
-    #[derive(Clone, Debug, PartialEq, PartialOrd)]
+    #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
     pub enum XmpValueStructField {
         /// Used when a field has additional inner elements (multiple fields)
         /// as opposed to one primitive value.
