@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use raves_metadata_types::{
     xmp::{XmpPrimitive, XmpValue},
     xmp_parsing_types::XmpPrimitiveKind as Prim,
@@ -11,14 +9,14 @@ use crate::xmp::error::{XmpParsingError, XmpValueResult};
 ///
 /// This is also called with `prim: Prim::Text` when the kind isn't actually
 /// known.
-pub fn parse_primitive<'xml>(text: Cow<'xml, str>, prim: &Prim) -> XmpValueResult<'xml> {
+pub fn parse_primitive(text: String, prim: &Prim) -> XmpValueResult {
     Ok(match prim {
         Prim::Boolean => XmpValue::Simple(XmpPrimitive::Boolean(match &*text {
             "True" => true,
             "False" => false,
             other => {
                 log::warn!("Encountered unknown boolean value: `{other}`.");
-                return Err(XmpParsingError::PrimitiveUnknownBool(Cow::clone(&text)));
+                return Err(XmpParsingError::PrimitiveUnknownBool(text));
             }
         })),
 
@@ -30,7 +28,7 @@ pub fn parse_primitive<'xml>(text: Cow<'xml, str>, prim: &Prim) -> XmpValueResul
                 .or_else(|e | {
                     if [core::num::IntErrorKind::NegOverflow, core::num::IntErrorKind::PosOverflow].contains(e.kind())  {
                         log::warn!("Given number too large for `i64`. Will be exposed as a `Prim::Text`. value: `{text}`");
-                        Ok(XmpPrimitive::Text(Cow::clone(&text)))
+                        Ok(XmpPrimitive::Text(text.clone()))
                     } else { Err(e) }
                 })
                 .inspect_err(|e| {
@@ -175,17 +173,14 @@ mod tests {
         );
 
         // however, those with other problems shouldn't be so lucky...
-        const FAILING_NUMBER_STR: &str = "1.2.3";
-        assert!(
-            matches!(
-                parse_primitive(FAILING_NUMBER_STR.into(), &Prim::Integer),
-                Err(XmpParsingError::PrimitiveIntegerParseFail(
-                    std::borrow::Cow::Borrowed("1.2.3"),
-                    _
-                ))
-            ),
-            "legitimately malformed ints should error like normal"
-        );
+        let failing_number_string: String = "1.2.3".into();
+        let parse_prim_res = parse_primitive(failing_number_string.clone(), &Prim::Integer);
+
+        let Err(XmpParsingError::PrimitiveIntegerParseFail(f, _)) = parse_prim_res else {
+            panic!("legitimately malformed ints should error like normal");
+        };
+
+        assert_eq!(f, failing_number_string);
     }
 
     /// Ensures that any text can be represented as a `Prim::Date`.

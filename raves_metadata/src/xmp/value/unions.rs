@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use raves_metadata_types::{
     xmp::XmpValue,
     xmp_parsing_types::{XmpKind as Kind, XmpKindStructField as Field, XmpPrimitiveKind as Prim},
@@ -12,12 +10,12 @@ use crate::xmp::{
 };
 
 /// Parses an element's value as a union.
-pub fn value_union<'xml>(
-    element: &'xml Element,
+pub fn value_union(
+    element: &Element,
     always: &'static [Field],
     discriminant: &'static Field,
     optional: &'static [(&'static str, &'static [Field])],
-) -> XmpElementResult<'xml> {
+) -> XmpElementResult {
     // ok! some things to note:
     //
     // - `always` refers to the union's fields that are present on each
@@ -42,7 +40,7 @@ pub fn value_union<'xml>(
                 {discriminant:#?}"
         );
         return Err(XmpParsingError::UnionDiscriminantWasntText {
-            element_name: Cow::from(&element.name),
+            element_name: element.name.clone(),
             discriminant_kind: discriminant,
         });
     };
@@ -137,7 +135,7 @@ pub fn value_union<'xml>(
 
         // so does the namespace
         let namespaces_match = match f.namespace() {
-            Some(ref s) => Some(&**s) == discriminant.ident.ns(),
+            Some(s) => Some(s.as_str()) == discriminant.ident.ns(),
             None => discriminant.ident.ns().is_none(),
         };
         log::trace!("finding discrim... `namespaces_match: bool = {namespaces_match}`");
@@ -158,7 +156,7 @@ pub fn value_union<'xml>(
                     - unexpected_fields: {unexpected_fields:#?}"
         );
         return Err(XmpParsingError::UnionNoDiscriminant {
-            element_name: Cow::from(&element.name),
+            element_name: element.name.to_string(),
         });
     };
 

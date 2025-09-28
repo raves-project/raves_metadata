@@ -16,25 +16,25 @@ pub mod xmp_parse_table;
 /// When parsing data out of XMP, these types, alongside the original document,
 /// are stored for user discoverability.
 pub mod xmp {
-    use ::alloc::{borrow::Cow, boxed::Box, vec::Vec};
+    use ::alloc::{boxed::Box, vec::Vec};
 
     /// An element parsed from the XMP.
     ///
     /// Contains identifiers and a value.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
-    pub struct XmpElement<'xml> {
-        pub namespace: Cow<'xml, str>,
-        pub prefix: Cow<'xml, str>,
-        pub name: Cow<'xml, str>,
+    pub struct XmpElement {
+        pub namespace: String,
+        pub prefix: String,
+        pub name: String,
 
-        pub value: XmpValue<'xml>,
+        pub value: XmpValue,
     }
 
     /// All the possible types an XMP value may have.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
-    pub enum XmpValue<'xml> {
-        Simple(XmpPrimitive<'xml>),
-        Struct(Vec<XmpValueStructField<'xml>>),
+    pub enum XmpValue {
+        Simple(XmpPrimitive),
+        Struct(Vec<XmpValueStructField>),
 
         /// A union is similar to a struct, but its tag determines which fields
         /// are stored at the moment.
@@ -45,88 +45,88 @@ pub mod xmp {
             ///
             /// Note that the discriminant, unlike the internal parser types,
             /// is NOT included in the `always` field - it's only here.
-            discriminant: Box<XmpValueStructField<'xml>>,
+            discriminant: Box<XmpValueStructField>,
 
             /// Fields for this discriminant.
-            expected_fields: Vec<XmpValueStructField<'xml>>,
+            expected_fields: Vec<XmpValueStructField>,
 
             /// Fields that were not expected for this discriminant, but were
             /// present nonetheless.
-            unexpected_fields: Vec<XmpValueStructField<'xml>>,
+            unexpected_fields: Vec<XmpValueStructField>,
         },
 
         // different array types
-        UnorderedArray(Vec<XmpElement<'xml>>),
-        OrderedArray(Vec<XmpElement<'xml>>),
+        UnorderedArray(Vec<XmpElement>),
+        OrderedArray(Vec<XmpElement>),
         Alternatives {
             /// In `(default_key, default_value)` form.
             ///
             /// This is the "chosen" (default) value in the list of
             /// alternatives.
-            chosen: (Cow<'xml, str>, Box<XmpElement<'xml>>),
+            chosen: (String, Box<XmpElement>),
 
             /// This is the full list of alternatives.
             ///
             /// Each entry is a `(key, value)` pair.
-            list: Vec<(Cow<'xml, str>, XmpElement<'xml>)>,
+            list: Vec<(String, XmpElement)>,
         },
     }
 
     /// One field of an XMP struct.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
-    pub enum XmpValueStructField<'xml> {
+    pub enum XmpValueStructField {
         /// Used when a field has additional inner elements (multiple fields)
         /// as opposed to one primitive value.
         ///
         /// In other words, the contained value isn't a primitive.
         Element {
             /// The field's name.
-            ident: Cow<'xml, str>,
+            ident: String,
 
             /// The field's namespace.
-            namespace: Option<Cow<'xml, str>>,
+            namespace: Option<String>,
 
             /// The field's idents + value.
-            element: XmpElement<'xml>,
+            element: XmpElement,
         },
 
         /// Used when a contained value isn't recursive - it's just a
         /// primitive.
         Value {
             /// The field's name.
-            ident: Cow<'xml, str>,
+            ident: String,
 
             /// The field's namespace.
-            namespace: Option<Cow<'xml, str>>,
+            namespace: Option<String>,
 
             /// The field's value.
-            value: XmpValue<'xml>,
+            value: XmpValue,
         },
     }
 
-    impl<'xml> XmpValueStructField<'xml> {
+    impl XmpValueStructField {
         /// Grabs a struct field's identifier.
-        pub fn ident(&self) -> Cow<'xml, str> {
+        pub fn ident(&self) -> &String {
             match self {
                 XmpValueStructField::Element { ident, .. }
-                | XmpValueStructField::Value { ident, .. } => Cow::clone(ident),
+                | XmpValueStructField::Value { ident, .. } => ident,
             }
         }
 
         /// Grabs a struct field's namespace.
-        pub fn namespace(&self) -> Option<Cow<'xml, str>> {
+        pub fn namespace(&self) -> Option<&String> {
             match self {
                 XmpValueStructField::Element { namespace, .. }
-                | XmpValueStructField::Value { namespace, .. } => namespace.clone(),
+                | XmpValueStructField::Value { namespace, .. } => namespace.as_ref(),
             }
         }
     }
 
     /// XMP structures can use these primitive types.
     #[derive(Clone, Debug, PartialEq, PartialOrd)]
-    pub enum XmpPrimitive<'xml> {
+    pub enum XmpPrimitive {
         Boolean(bool),
-        Date(Cow<'xml, str>),
+        Date(String),
 
         // TODO: technically, these can store infinite digits. should we
         // implement that?
@@ -137,7 +137,7 @@ pub mod xmp {
         Integer(i64),
 
         Real(f64),
-        Text(Cow<'xml, str>),
+        Text(String),
     }
 }
 

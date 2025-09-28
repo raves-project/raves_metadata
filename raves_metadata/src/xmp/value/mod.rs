@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use raves_metadata_types::{
     xmp::{XmpElement, XmpValue},
     xmp_parsing_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
@@ -26,20 +24,20 @@ pub trait XmpElementExt {
     /// Uses an element's schema to parse it.
     ///
     /// The schema is parsed recursively.
-    fn value_with_schema<'elem>(&'elem self, schema: &'static Kind) -> XmpElementResult<'elem>;
+    fn value_with_schema(&self, schema: &'static Kind) -> XmpElementResult;
 
     /// For elements where we don't know their schema, we use this "generic" parser
     /// to grab an `XmpValue` from the element.
     ///
     /// Note that, because we don't know the schema, all values become
     /// `XmpValue::Text`, and editing will be more difficult.
-    fn value_generic(&self) -> XmpElementResult<'_>;
+    fn value_generic(&self) -> XmpElementResult;
 
-    fn to_xmp_element<'xmp>(&'xmp self, value: XmpValue<'xmp>) -> XmpElementResult<'xmp>;
+    fn to_xmp_element(&self, value: XmpValue) -> XmpElementResult;
 }
 
 impl XmpElementExt for Element {
-    fn value_with_schema<'elem>(&'elem self, schema: &'static Kind) -> XmpElementResult<'elem> {
+    fn value_with_schema(&self, schema: &'static Kind) -> XmpElementResult {
         log::trace!(
             "Parsing element with known schema!
                 - element: `{}`
@@ -54,11 +52,12 @@ impl XmpElementExt for Element {
             Kind::Simple(prim) => self.to_xmp_element(parse_primitive(
                 self.get_text()
                     .ok_or(XmpParsingError::PrimitiveTextHadNoText {
-                        element_name: Cow::from(&self.name),
+                        element_name: self.name.clone(),
                     })
                     .inspect_err(|e| {
                         log::error!("A text primitive w/ known schema had no inner text. err: {e}")
-                    })?,
+                    })?
+                    .to_string(),
                 prim,
             )?),
 
@@ -83,7 +82,7 @@ impl XmpElementExt for Element {
         }
     }
 
-    fn value_generic(&self) -> XmpElementResult<'_> {
+    fn value_generic(&self) -> XmpElementResult {
         log::trace!("Parsing unknown element: `{}`", self.name);
 
         // this is a generic element parser used for elements that don't have a
@@ -109,8 +108,9 @@ impl XmpElementExt for Element {
             return parse_primitive(
                 self.get_text()
                     .ok_or(XmpParsingError::GenericLikelyPrimitiveHadNoText {
-                        element_name: Cow::from(&self.name),
-                    })?,
+                        element_name: self.name.clone(),
+                    })?
+                    .to_string(),
                 &Prim::Text,
             )
             .and_then(|value| self.to_xmp_element(value));
@@ -139,7 +139,8 @@ impl XmpElementExt for Element {
                 "We don't have other useful info, so attempting to \
                 parse as text..."
             );
-            return parse_primitive(text, &Prim::Text).and_then(|value| self.to_xmp_element(value));
+            return parse_primitive(text.to_string(), &Prim::Text)
+                .and_then(|value| self.to_xmp_element(value));
         }
 
         // well... there are no other options. we can't make a generic value
@@ -147,7 +148,7 @@ impl XmpElementExt for Element {
         //
         // return an error stating such to the user
         Err(XmpParsingError::GenericNoOtherOption {
-            element_name: Cow::from(&self.name),
+            element_name: self.name.clone(),
         })
     }
 
@@ -158,12 +159,12 @@ impl XmpElementExt for Element {
     ///
     /// That should almost never happen, though! We'll emit error diagnostics if we
     /// find it happening.
-    fn to_xmp_element<'xmp>(&'xmp self, value: XmpValue<'xmp>) -> XmpElementResult<'xmp> {
+    fn to_xmp_element(&self, value: XmpValue) -> XmpElementResult {
         // namespace is required
         let Some(ref namespace) = self.namespace else {
             log::warn!("Can't create XMP element - no namespace on `self`: {self:#?}");
             return Err(XmpParsingError::XmpElementCreationNoNamespace {
-                element_name: Cow::from(&self.name),
+                element_name: self.name.clone(),
             });
         };
 
@@ -171,7 +172,7 @@ impl XmpElementExt for Element {
         let Some(ref prefix) = self.prefix else {
             log::warn!("Can't create XMP element - no prefix on `self`: {self:#?}");
             return Err(XmpParsingError::XmpElementCreationNoPrefix {
-                element_name: Cow::from(&self.name),
+                element_name: self.name.clone(),
             });
         };
 
