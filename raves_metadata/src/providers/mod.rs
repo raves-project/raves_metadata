@@ -12,6 +12,7 @@
 
 pub mod avif;
 pub mod heic;
+pub mod jpeg;
 pub mod mov;
 pub mod mp4;
 pub mod png;
