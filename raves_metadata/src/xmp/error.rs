@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 /// This is an error that happened while we were parsing XMP.
 #[derive(Clone, Debug)]
+#[repr(u8)]
 pub enum XmpError {
     /// The given data was not UTF-8.
     ///
@@ -32,6 +33,62 @@ pub enum XmpError {
     /// We couldn't find any `rdf:Description` elements in the `rdf:Rdf`
     /// element.
     NoDescriptionElements,
+    //
+    //
+    //
+    //
+    //
+    //
+    // WARNING: do not add more error variants w/o changing the `PartialEq`
+    // + `PartialOrd` + `Hash` impls below.
+}
+
+impl core::cmp::PartialEq for XmpError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // just cmp pointers for this one lmao
+            (Self::XmlParseError(a), Self::XmlParseError(b)) => {
+                core::ptr::eq(Arc::as_ptr(a), Arc::as_ptr(b))
+            }
+            // otherwise, compare enum discriminants
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+
+impl core::cmp::PartialOrd for XmpError {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        // this is so dumb lol
+        //
+        // why can't you compare `core::mem::Discriminant<T>`?
+        fn map_to_u8(e: &XmpError) -> u8 {
+            match e {
+                XmpError::NotUtf8 => 0_u8,
+                XmpError::XmlParseError(_) => 1_u8,
+                XmpError::NoRdfElement => 2_u8,
+                XmpError::NoDescriptionElements => 3_u8,
+            }
+        }
+
+        match (self, other) {
+            // just cmp pointers
+            (Self::XmlParseError(a), Self::XmlParseError(b)) => {
+                Arc::as_ptr(a).partial_cmp(&Arc::as_ptr(b))
+            }
+
+            // otherwise, compare enum discriminants
+            _ => map_to_u8(self).partial_cmp(&map_to_u8(other)),
+        }
+    }
+}
+
+impl core::hash::Hash for XmpError {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        if let XmpError::XmlParseError(a) = self {
+            Arc::as_ptr(a).hash(state);
+        }
+        core::mem::discriminant(self).hash(state);
+    }
 }
 
 impl core::fmt::Display for XmpError {
