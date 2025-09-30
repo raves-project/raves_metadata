@@ -117,6 +117,51 @@ const X_NAMESPACE: &str = r"adobe:ns:meta/";
 
 /// Parses the XMP document.
 fn parse_xmp(document: &Element) -> Result<Vec<XmpElement>, XmpError> {
+    // grab rdf descriptions
+    let descriptions = get_rdf_descriptions(document)?;
+
+    // if we've got no descriptions, we can't continue
+    if descriptions.is_empty() {
+        log::warn!("No `rdf:Description` elements found in the `rdf:RDF` element.");
+        return Err(XmpError::NoDescriptionElements);
+    }
+
+    // now, we're free to parse the descriptions!
+    Ok(descriptions
+        .iter()
+        .flat_map(|description| {
+            // grab description's attributes
+            let desc_attrs = description.attributes.clone();
+
+            // parse the attributes of the `rdf:Description` element
+            let parsed_attrs = desc_attrs.iter().flat_map(|(key, val)| {
+                // ignore `rdf:about`, which is an informational marker w/o data
+                // if the namespace and name match `rdf:about`, skip it
+                if let Some(ref attr_namespace) = key.namespace
+                    && attr_namespace.as_str() == RDF_NAMESPACE
+                    && key.local_name.as_str() == "about"
+                {
+                    log::trace!("Skipping `rdf:about` attribute as value on `rdf:Description`...");
+                    return None;
+                }
+
+                log::debug!("Parsing attribute `{key}` with value `{val}`.");
+                parse_attribute((key.clone(), val.clone()))
+            });
+
+            // now, parse the sub-elements of the `rdf:Description` element
+            description
+                .children
+                .iter()
+                .flat_map(|c| c.as_element())
+                .flat_map(parse_element)
+                .chain(parsed_attrs)
+                .collect::<Vec<XmpElement>>()
+        })
+        .collect())
+}
+
+pub(crate) fn get_rdf_descriptions(document: &Element) -> Result<Vec<&xmltree::Element>, XmpError> {
     // let's start by trying to grab the elements before the descriptions.
     //
     // the first one is optional: `x:xmpmeta`
@@ -173,7 +218,7 @@ fn parse_xmp(document: &Element) -> Result<Vec<XmpElement>, XmpError> {
     // elements.
     //
     // let's grab those
-    let descriptions = rdf
+    Ok(rdf
         .children
         .iter()
         .flat_map(|child| child.as_element())
@@ -193,53 +238,13 @@ fn parse_xmp(document: &Element) -> Result<Vec<XmpElement>, XmpError> {
             if ns != RDF_NAMESPACE {
                 log::error!(
                     "Cannot parse `Description` due to incorrect namespace!
-                        - expected: {RDF_NAMESPACE}
-                        - got: {ns}"
+                                - expected: {RDF_NAMESPACE}
+                                - got: {ns}"
                 );
                 return false;
             }
 
             true
-        })
-        .collect::<Vec<_>>();
-
-    // if we've got no descriptions, we can't continue
-    if descriptions.is_empty() {
-        log::warn!("No `rdf:Description` elements found in the `rdf:RDF` element.");
-        return Err(XmpError::NoDescriptionElements);
-    }
-
-    // now, we're free to parse the descriptions!
-    Ok(descriptions
-        .iter()
-        .flat_map(|description| {
-            // grab description's attributes
-            let desc_attrs = description.attributes.clone();
-
-            // parse the attributes of the `rdf:Description` element
-            let parsed_attrs = desc_attrs.iter().flat_map(|(key, val)| {
-                // ignore `rdf:about`, which is an informational marker w/o data
-                // if the namespace and name match `rdf:about`, skip it
-                if let Some(ref attr_namespace) = key.namespace
-                    && attr_namespace.as_str() == RDF_NAMESPACE
-                    && key.local_name.as_str() == "about"
-                {
-                    log::trace!("Skipping `rdf:about` attribute as value on `rdf:Description`...");
-                    return None;
-                }
-
-                log::debug!("Parsing attribute `{key}` with value `{val}`.");
-                parse_attribute((key.clone(), val.clone()))
-            });
-
-            // now, parse the sub-elements of the `rdf:Description` element
-            description
-                .children
-                .iter()
-                .flat_map(|c| c.as_element())
-                .flat_map(parse_element)
-                .chain(parsed_attrs)
-                .collect::<Vec<XmpElement>>()
         })
         .collect())
 }
