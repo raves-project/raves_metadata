@@ -22,6 +22,14 @@ Note that their licenses are specified using the [SPDX License List "short forma
 
 - [`assets/heic/C034.heic`](https://github.com/nokiatech/heif_conformance/blob/f17e517f7518984b4450349a88edc09519082c74/conformance_files/C034.heic): Unlicensed. See [`nokiatech/heif_conformance` Issue #3](https://github.com/nokiatech/heif_conformance/issues/3) for more information.
 
+### JPEG
+
+- [`assets/providers/jpeg/Calico_Cat_Asleep.jpg`](https://commons.wikimedia.org/wiki/File:Calico_Cat_Asleep.jpg): CC0-1.0
+- [`assets/providers/jpeg/Cat-in-da-hat.jpg`](https://commons.wikimedia.org/wiki/File:File,Cat-in-da-hat.jpg): CC0-1.0
+- [`assets/providers/jpeg/exiv2-bug922.jpg`](https://github.com/Exiv2/exiv2/blob/c9cea75e4f92e561e5db237c32dfa787fd25467c/test/data/exiv2-bug922.jpg): TODO
+- [`assets/providers/jpeg/General_Rafael_Urdaneta_Bridge_view_from_the_lake_to_Cabimas_side.jpg`](https://commons.wikimedia.org/wiki/File:General_Rafael_Urdaneta_Bridge_view_from_the_lake_to_Cabimas_side.jpg): CC0-1.0
+- [`assets/providers/jpeg/Metadata test file - includes data in IIM, XMP, and Exif.jpg.jpg`](https://commons.wikimedia.org/wiki/File:Metadata_test_file_-_includes_data_in_IIM,_XMP,_and_Exif.jpg): CC-BY-SA-4.0
+
 ### MOV (QuickTime)
 
 - [`assets/mov/QuickTime.mov`](https://github.com/exiftool/exiftool/blob/c587c0ef5a1b4c7983e06a43ab7d0012cb5569bb/t/images/QuickTime.mov): GPL-3.0-or-later
