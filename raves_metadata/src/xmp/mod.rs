@@ -102,6 +102,53 @@ impl Xmp {
     pub fn document(&self) -> &XmpDocument {
         &self.document
     }
+
+    /// Combines this XMP document with another one.
+    ///
+    /// Required to implement things like Extended XMP in JPEG.
+    ///
+    /// ```
+    /// use raves_metadata::xmp::Xmp;
+    ///
+    /// let doc_1: Xmp = Xmp::new(r#"
+    /// <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c145 79.163499, 2018/08/13-16:40:22">
+    ///     <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    ///         <rdf:Description rdf:about="">
+    ///             <dc:subject><rdf:Bag><rdf:li>doc1</rdf:li></rdf:Bag></dc:subject>
+    ///         </rdf:Description>
+    ///     </rdf:RDF>
+    /// </x:xmpmeta>
+    /// "#).unwrap();
+    ///
+    /// let doc_2: Xmp = Xmp::new(r#"
+    /// <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 5.6-c145 79.163499, 2018/08/13-16:40:22">
+    ///     <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:my_ns="https://github.com/onkoe">
+    ///         <rdf:Description rdf:about="">
+    ///             <my_ns:MyStruct> <rdf:Description /> </my_ns:MyStruct>
+    ///         </rdf:Description>
+    ///     </rdf:RDF>
+    /// </x:xmpmeta>
+    /// "#).unwrap();
+    ///
+    /// // take their union
+    /// let combined: Xmp = doc_1.combine(doc_2);
+    ///
+    /// // ensure we got everything!
+    /// assert_eq!(
+    ///     combined
+    ///         .document()
+    ///         .values_ref()
+    ///         .iter()
+    ///         .map(|v| v.name.clone())
+    ///         .collect::<Vec<_>>(),
+    ///     vec!["subject", "MyStruct"],
+    /// );
+    /// ```
+    #[doc(alias = "union", alias = "concat")]
+    pub fn combine(mut self, mut other: Self) -> Self {
+        self.document.0.append(&mut other.document.0);
+        self
+    }
 }
 
 /// This represents the `rdf:` prefix in various collection/container types in
