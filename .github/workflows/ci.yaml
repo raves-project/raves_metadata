@@ -32,6 +32,9 @@ jobs:
       - name: Run tests
         run: cargo nextest run --no-fail-fast
 
+      - name: Run doctests
+        run: cargo test --doc --no-fail-fast
+
       - name: Generate documentation
         run: RUSTDOCFLAGS="-Dwarnings" cargo doc --no-deps --workspace
 
