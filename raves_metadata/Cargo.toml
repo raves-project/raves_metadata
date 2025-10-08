@@ -4,6 +4,9 @@ description = "A library to parse metadata from media files"
 version = "0.0.1"
 readme = "../README.md"
 
+# avoid publishing test assets or the tests themselves
+exclude = ["assets/", "tests/", "scripts/"]
+
 # derive some props from the workspace
 authors.workspace = true
 edition.workspace = true

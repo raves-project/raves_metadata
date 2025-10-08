@@ -1,3 +1,5 @@
+//! WebP-related types.
+
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -12,6 +14,7 @@ mod error;
 mod extended;
 mod header;
 
+/// A WebP file.
 #[derive(Clone, Debug)]
 pub struct Webp {
     _header: WebpFileHeader,

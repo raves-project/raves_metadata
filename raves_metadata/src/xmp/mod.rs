@@ -32,8 +32,6 @@ pub mod error;
 mod heuristics;
 mod value;
 
-// re-export the XMP types from `raves_metadata_types`
-
 /// Re-exports of the XMP types from `raves_metadata_types`.
 ///
 /// These allow you to build your own XMP types from scratch!

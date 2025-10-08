@@ -1,8 +1,11 @@
+//! Errors for the [`iptc`](`crate::iptc`) module.
+
 use std::sync::Arc;
 
 /// An error that occurred while parsing IPTC.
 #[derive(Debug)]
 pub enum IptcError {
+    /// Failed to parse provided XMP document.
     Iptc4Xmp(Iptc4XmpError),
 }
 

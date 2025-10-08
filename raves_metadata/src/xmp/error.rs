@@ -1,4 +1,4 @@
-// /// Can occur while parsing XMP metadata into values.
+//! Error types for the [`xmp`](`crate::xmp`) module.
 
 use std::num::{ParseFloatError, ParseIntError};
 
@@ -7,7 +7,14 @@ use raves_metadata_types::{
     xmp_parsing_types::{XmpKind, XmpKindStructField},
 };
 
+/// A result obtained when parsing a single XMP value.
+///
+/// This may or may not contain an error.
 pub type XmpValueResult = Result<XmpValue, XmpParsingError>;
+
+/// A result obtained when parsing a single XMP element.
+///
+/// This may or may not contain an error.
 pub type XmpElementResult = Result<XmpElement, XmpParsingError>;
 
 use std::sync::Arc;
@@ -144,10 +151,16 @@ pub enum XmpParsingError {
     //
     /// Couldn't create an `XmpElement` from the `self: &Element` and
     /// `value: Value` pair, as `self` lacks a namespace.
-    XmpElementCreationNoNamespace { element_name: String },
+    XmpElementCreationNoNamespace {
+        /// The element in question.
+        element_name: String,
+    },
 
     /// Same as above, except `self` lacks a prefix.
-    XmpElementCreationNoPrefix { element_name: String },
+    XmpElementCreationNoPrefix {
+        /// The element in question.
+        element_name: String,
+    },
 
     //
     //
@@ -160,17 +173,33 @@ pub enum XmpParsingError {
     ///
     /// However, it wasn't a matching value! The contained value was what we
     /// got.
-    PrimitiveUnknownBool(String),
+    PrimitiveUnknownBool(
+        /// The string value encountered instead of a boolean value.
+        String,
+    ),
 
     /// We were told to parse out an Integer, but it failed to parse
     /// correctly. Contained value is what we got and the `core` parsing error.
-    PrimitiveIntegerParseFail(String, ParseIntError),
+    PrimitiveIntegerParseFail(
+        /// The integer source string that couldn't be parsed.
+        String,
+        /// The parsing error obtained from `core`.
+        ParseIntError,
+    ),
 
     /// We were told to parse out a float (Real), but didn't parse right.
-    PrimitiveRealParseFail(String, ParseFloatError),
+    PrimitiveRealParseFail(
+        /// The float source string that couldn't be parsed.
+        String,
+        /// The parsing error obtained from `core`.
+        ParseFloatError,
+    ),
 
     /// A primitive with a known text value had no text.
-    PrimitiveTextHadNoText { element_name: String },
+    PrimitiveTextHadNoText {
+        /// The name of the element in question.
+        element_name: String,
+    },
 
     //
     //
@@ -182,12 +211,17 @@ pub enum XmpParsingError {
     /// Unions are currently expected to have only a `Text` discriminant, but
     /// this value was described by another `Kind`.
     UnionDiscriminantWasntText {
+        /// The element's name.
         element_name: String,
+        /// The kind of discriminant that wasn't a `Text` value.
         discriminant_kind: &'static XmpKindStructField,
     },
 
     /// The union had no discriminant, so we couldn't see how to parse it.
-    UnionNoDiscriminant { element_name: String },
+    UnionNoDiscriminant {
+        /// The element's name.
+        element_name: String,
+    },
 
     //
     //
@@ -199,7 +233,9 @@ pub enum XmpParsingError {
     /// Couldn't find an inner collection type, like `rdf:Alt`, `rdf:Bag` or
     /// `rdf:Seq`.
     ArrayNoInnerCollectionType {
+        /// The element's name.
         element_name: String,
+        /// A list of unparsed children.
         children: Vec<xmltree::XMLNode>,
     },
 
@@ -207,7 +243,12 @@ pub enum XmpParsingError {
     ///
     /// This one didn't.
     ArrayAltNoDefault {
+        /// The element's name.
         element_name: String,
+
+        /// The list of alternatives.
+        ///
+        /// One of these should have a default value, but none did!
         alternatives_array: Vec<(String, XmpElement)>,
     },
 
@@ -216,7 +257,10 @@ pub enum XmpParsingError {
     ///
     /// We can't continue parsing that since we need to know our internal type.
     ArrayGivenNonArraySchema {
+        /// Element's name.
         element_name: String,
+
+        /// Unexpected scheme that was found.
         weird_schema: &'static XmpKind,
     },
 
@@ -230,13 +274,19 @@ pub enum XmpParsingError {
     //
     /// We couldn't get the text for an element that was expected to be a
     /// primitive.
-    GenericLikelyPrimitiveHadNoText { element_name: String },
+    GenericLikelyPrimitiveHadNoText {
+        /// Element's name.
+        element_name: String,
+    },
 
     /// We looked through all the possible types this value could have, but it
     /// simply had no information inside it.
     ///
     /// Thus, we returned a blank type. (which isn't useful at all)
-    GenericNoOtherOption { element_name: String },
+    GenericNoOtherOption {
+        /// Eleement's name.
+        element_name: String,
+    },
 }
 
 impl core::fmt::Display for XmpParsingError {
