@@ -120,6 +120,9 @@ struct GetMetadata<'input> {
     xmp: Option<&'input str>,
 }
 
+/// The `eXif` chunk contains Exif data.
+///
+/// This value is its identifier.
 pub const EXIF_CHUNK_IDENT: [u8; 4] = *b"eXIf";
 
 /// Parses through the PNG chunks to find metadata.
@@ -294,7 +297,10 @@ pub enum PngConstructionError {
     NoSignature,
 
     /// No PNG signature was detected.
-    NotAPng { found: [u8; 8] },
+    NotAPng {
+        /// The signature that was found instead.
+        found: [u8; 8],
+    },
 }
 
 impl core::fmt::Display for PngConstructionError {

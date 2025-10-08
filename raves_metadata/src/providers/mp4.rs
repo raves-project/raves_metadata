@@ -1,3 +1,5 @@
+//! MP4-related stuff.
+
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -13,6 +15,7 @@ use crate::{
     providers::shared::bmff::{BoxHeader, BoxType, XMP_UUID, ftyp::FtypBox},
 };
 
+/// An MPEG-4 (MP4) file.
 #[derive(Clone, Debug)]
 pub struct Mp4 {
     xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
@@ -130,6 +133,7 @@ fn parse_boxes_until_xmp<'input>(input: &mut &'input [u8]) -> Option<&'input [u8
     None
 }
 
+/// An error that occurred when parsing an MP4.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum Mp4ConstructionError {
     /// The filetype box is required to continue parsing, but there wasn't one!

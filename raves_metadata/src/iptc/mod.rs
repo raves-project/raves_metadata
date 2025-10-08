@@ -1,3 +1,5 @@
+//! An IPTC parser implementation.
+
 use raves_metadata_types::iptc::IptcKeyValue;
 
 pub mod error;
@@ -6,6 +8,7 @@ mod iptc4xmp;
 /// Parsed IPTC.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Iptc {
+    /// Key-value pairs representing parsed IPTC data.
     pub pairs: Vec<IptcKeyValue>,
 }
 
