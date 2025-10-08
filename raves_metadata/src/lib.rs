@@ -324,8 +324,11 @@ where
     Parsed(Wrapped<P>),
 }
 
+#[expect(missing_docs)]
 pub type MaybeParsedExif = MaybeParsed<Vec<u8>, Exif>;
+#[expect(missing_docs)]
 pub type MaybeParsedIptc = MaybeParsed<Vec<u8>, Iptc>;
+#[expect(missing_docs)]
 pub type MaybeParsedXmp = MaybeParsed<Vec<u8>, Xmp>;
 
 /// A wrapper struct around metadata standard types.

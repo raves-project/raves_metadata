@@ -1,3 +1,5 @@
+//! Error types for the [`exif`](`crate::exif`) module.
+
 use raves_metadata_types::exif::{Field, ifd::IfdGroup, primitives::PrimitiveTy};
 
 use crate::exif::ifd::RECURSION_LIMIT;
@@ -17,20 +19,30 @@ pub type ExifFatalResult<T> = Result<T, ExifFatalError>;
 /// In that case, we'll report that inside the list.
 pub type ExifFieldResult = Result<Field, ExifFieldError>;
 
+/// A fatal error that occurred when parsing Exif.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum ExifFatalError {
     /// The input was too short to provide a byte order marker.
-    NoByteOrderMarker { len: u8 },
+    NoByteOrderMarker {
+        /// The input's length.
+        len: u8,
+    },
 
     /// The byte order marker was weird - it's not one of the two expected
     /// values (in ASCII, should be either `II` or `MM`).
-    WeirdByteOrderMarker { found: [u8; 2] },
+    WeirdByteOrderMarker {
+        /// The found BOM.
+        found: [u8; 2],
+    },
 
     /// Didn't find the TIFF magic number.
     NoTiffMagicNumber,
 
     /// The magic number indexes had a weird value. It's not TIFF's.
-    MagicNumberWasntTiff { found: u16 },
+    MagicNumberWasntTiff {
+        /// The found magic number.
+        found: u16,
+    },
 
     /// No TIFF header offset was found.
     NoTiffHeaderOffset,
@@ -53,13 +65,23 @@ pub enum ExifFatalError {
 
     /// An IFD attempted to self-recurse, which is disallowed.
     SelfRecursion {
+        /// The IFD group this was.
         ifd_group: IfdGroup,
+
+        /// The IFD stack.
+        ///
+        /// Gives a trace of everything that happened to this point.
         call_stack: Box<[Option<u32>; RECURSION_LIMIT as usize]>,
     },
 
     /// Hit recursion limit.
     HitRecursionLimit {
+        /// The IFD group this was.
         ifd_group: IfdGroup,
+
+        /// The IFD stack.
+        ///
+        /// Gives a trace of everything that happened to this point.
         call_stack: Box<[u32; RECURSION_LIMIT as usize]>,
     },
 }
@@ -76,6 +98,7 @@ impl winnow::error::ParserError<&[u8]> for ExifFatalError {
     }
 }
 
+/// An error that occurred while parsing a single Exif field.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum ExifFieldError {
     //
@@ -87,7 +110,10 @@ pub enum ExifFieldError {
     FieldNoTy,
 
     /// Encountered an unknown type while parsing n field.
-    FieldUnknownType { got: u16 },
+    FieldUnknownType {
+        /// The type indicator number.
+        got: u16,
+    },
 
     /// The field didn't specify how many primitives it contains.
     FieldNoCount,
@@ -98,10 +124,16 @@ pub enum ExifFieldError {
     //
     // value parsing stuff
     /// Couldn't parse to offset. It was likely too far (malformed).
-    OffsetTooFar { offset: u32 },
+    OffsetTooFar {
+        /// The offset found.
+        offset: u32,
+    },
 
     /// Couldn't parse primitive - no more data.
-    OuttaData { ty: PrimitiveTy },
+    OuttaData {
+        /// The type that was intended to be parsed.
+        ty: PrimitiveTy,
+    },
 }
 
 impl core::fmt::Display for ExifFatalError {

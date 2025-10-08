@@ -1,3 +1,4 @@
+/// An error that occurred while parsing a JPEG file.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum JpegConstructionError {
     /// The first marker in a JPEG file should be a `SOI`.

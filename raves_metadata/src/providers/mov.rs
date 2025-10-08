@@ -298,6 +298,7 @@ impl MetadataProvider for Mov {
     }
 }
 
+/// An error that occurred when parsing a QuickTime/`MOV` file.
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
 pub enum MovConstructionError {
     /// The given file isn't actually an MOV file.
