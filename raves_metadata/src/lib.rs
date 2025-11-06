@@ -50,8 +50,11 @@ use crate::{
 
 pub mod exif;
 pub mod iptc;
+pub mod magic_number;
 pub mod providers;
 pub mod xmp;
+
+pub fn get(input: &impl AsRef<[u8]>) ->
 
 /// A media file with support for various metadata formats.
 ///
@@ -265,6 +268,21 @@ pub trait MetadataProvider:
             None => handle_none(),
         }
     }
+
+    /// Indicates whether the given input matches the magic number of this
+    /// provider.
+    ///
+    /// `input` only needs to be as long as the magic number -- don't shove 40
+    /// GiB memmap'd files in here.
+    ///
+    /// # Returns
+    ///
+    /// - `true` if `input` matches the expected magic number (signature).
+    /// - Otherwise, `false`.
+    ///
+    /// Note that this is fallible, as any arbitrary byte slice could have the
+    /// expected signature. However, this method will never panic.
+    fn magic_number(input: &[u8]) -> bool;
 }
 
 /// Raw helpers for [`MetadataProvider`] implementors.
