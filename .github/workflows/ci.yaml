@@ -26,6 +26,9 @@ jobs:
       - name: Install `cargo-semver-checks`
         run: cargo binstall --no-confirm --force cargo-semver-checks
 
+      - name: Install `rust-script`
+        run: cargo binstall --no-confirm --force rust-script
+
       - name: Lint the project
         run: cargo clippy -- -A unused_variables
 
@@ -40,3 +43,13 @@ jobs:
 
       - name: Check semantic versioning
         run: cargo semver-checks
+
+      - name: Ensure the `raves_metadata_types::iptc` module is up-to-date
+        run: |
+          set -euo pipefail
+          cp raves_metadata_types/src/iptc.rs /tmp/iptc.rs.OLD
+          cd raves_metadata_types/scripts
+          ./generate_iptc_module.rs
+          echo "Checking if iptc.rs is up-to-date..."
+          cmp --silent /tmp/iptc.rs.OLD ../src/iptc.rs
+          echo "iptc.rs is up-to-date!"
