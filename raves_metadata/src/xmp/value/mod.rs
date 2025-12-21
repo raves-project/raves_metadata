@@ -1,6 +1,6 @@
-use raves_metadata_types::{
-    xmp::{XmpElement, XmpValue},
-    xmp_parsing_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
+use raves_metadata_types::xmp::{
+    XmpElement, XmpValue,
+    parse_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
 };
 use xmltree::Element;
 

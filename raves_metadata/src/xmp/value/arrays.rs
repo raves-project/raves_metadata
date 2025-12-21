@@ -1,6 +1,6 @@
-use raves_metadata_types::{
-    xmp::XmpValue,
-    xmp_parsing_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
+use raves_metadata_types::xmp::{
+    XmpValue,
+    parse_types::{XmpKind as Kind, XmpPrimitiveKind as Prim},
 };
 use xmltree::{Element, XMLNode};
 
@@ -280,8 +280,8 @@ fn value_array(
 #[cfg(test)]
 mod tests {
     use raves_metadata_types::{
+        xmp::parse_table::XMP_PARSING_MAP,
         xmp::{XmpElement, XmpPrimitive, XmpValue, XmpValueStructField},
-        xmp_parse_table::XMP_PARSING_MAP,
     };
     use xmltree::Element;
 

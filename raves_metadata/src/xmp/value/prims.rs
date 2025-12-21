@@ -1,7 +1,4 @@
-use raves_metadata_types::{
-    xmp::{XmpPrimitive, XmpValue},
-    xmp_parsing_types::XmpPrimitiveKind as Prim,
-};
+use raves_metadata_types::xmp::{XmpPrimitive, XmpValue, parse_types::XmpPrimitiveKind as Prim};
 
 use crate::xmp::error::{XmpParsingError, XmpValueResult};
 
@@ -60,9 +57,8 @@ pub fn parse_primitive(text: String, prim: &Prim) -> XmpValueResult {
 
 #[cfg(test)]
 mod tests {
-    use raves_metadata_types::{
-        xmp::{XmpPrimitive, XmpValue},
-        xmp_parsing_types::XmpPrimitiveKind as Prim,
+    use raves_metadata_types::xmp::{
+        XmpPrimitive, XmpValue, parse_types::XmpPrimitiveKind as Prim,
     };
 
     use crate::xmp::{error::XmpParsingError, value::prims::parse_primitive};

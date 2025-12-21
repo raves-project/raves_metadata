@@ -17,10 +17,7 @@
 
 extern crate alloc;
 
-use raves_metadata_types::{
-    xmp::{XmpElement, XmpPrimitive, XmpValue},
-    xmp_parsing_types::XmpKind as Kind,
-};
+use raves_metadata_types::xmp::{XmpElement, XmpPrimitive, XmpValue, parse_types::XmpKind as Kind};
 use xmltree::{AttributeName, Element};
 
 use crate::xmp::{
@@ -319,7 +316,7 @@ fn parse_attribute((key, value): (AttributeName, String)) -> Option<XmpElement> 
     // let's check if we know how to parse this element...
     Some({
         let map_pair = (ns.as_str(), key.local_name.as_str());
-        let value = match raves_metadata_types::xmp_parse_table::XMP_PARSING_MAP.get(&map_pair) {
+        let value = match raves_metadata_types::xmp::parse_table::XMP_PARSING_MAP.get(&map_pair) {
             Some(schema) => {
                 // we've got a schema.
                 //
@@ -382,7 +379,7 @@ fn parse_element(element: &Element) -> Option<XmpElement> {
     //
     // - if we do, apply its schema.
     // - otherwise, parse it in a generic way.
-    match raves_metadata_types::xmp_parse_table::XMP_PARSING_MAP
+    match raves_metadata_types::xmp::parse_table::XMP_PARSING_MAP
         .get(&(ns.as_str(), element.name.as_str()))
     {
         // if we've got a schema, try to use that...

@@ -2,9 +2,9 @@
 
 use std::num::{ParseFloatError, ParseIntError};
 
-use raves_metadata_types::{
-    xmp::{XmpElement, XmpValue},
-    xmp_parsing_types::{XmpKind, XmpKindStructField},
+use raves_metadata_types::xmp::{
+    XmpElement, XmpValue,
+    parse_types::{XmpKind, XmpKindStructField},
 };
 
 /// A result obtained when parsing a single XMP value.
