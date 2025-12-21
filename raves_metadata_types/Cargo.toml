@@ -13,6 +13,3 @@ rust-version.workspace = true
 
 [dependencies]
 rustc-hash = { version = "2.1.1" }
-
-[build-dependencies]
-yaml-rust2 = { version = "0.10.3", default-features = true }
