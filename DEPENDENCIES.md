@@ -63,19 +63,6 @@ It only depends on:
 
 I'm more lenient for dependencies in here. Please make an issue before doing so, nonetheless! :D
 
-### Build Dependencies
-
-#### `yaml-rust2`
-
-To parse the IPTC tech reference YAML file, we use `yaml-rust2`. This might be removed in the future, as there's technically no blockers to just use the `cargo-expand` output directly (or, more likely, to just `include!()` the current output and put the dependency + build script behind a feature flag).
-
-`yaml-rust2` has a few dependencies itself:
-
-- `arraydeque` makes the YAML buffer [faster to scan](https://github.com/Ethiraric/yaml-rust2/blob/399f481990f11120b144ccd550657580284a3a30/documents/2024-03-15-FirstRelease.md?plain=1#L50).
-- `hashlink` provides `hashlink::LinkedHashMap`, which maintains the order of its entries. It's used in `yaml-rust2` to describe the YAML document in order.
-  - `hashbrown` is another implementation of `std::collections::HashMap`, though it works `#[no_std]`.
-    - `foldhash` is `hashbrown`'s default hasher.
-
 ### Runtime Dependencies
 
 #### `rustc-hash`
