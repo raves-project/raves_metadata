@@ -4,7 +4,7 @@
 //! according to the noted primitives), but having some constants down here
 //! might save some space and time... ;D
 
-use crate::xmp_parsing_types::{
+use super::parse_types::{
     XmpKind as Kind, XmpKindStructField as Field, XmpKindStructFieldIdent as Ident,
     XmpPrimitiveKind as Prim,
 };

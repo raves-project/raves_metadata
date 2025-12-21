@@ -1,6 +1,6 @@
-use raves_metadata_types::{
-    xmp::XmpValue,
-    xmp_parsing_types::{XmpKind as Kind, XmpKindStructField as Field, XmpPrimitiveKind as Prim},
+use raves_metadata_types::xmp::{
+    XmpValue,
+    parse_types::{XmpKind as Kind, XmpKindStructField as Field, XmpPrimitiveKind as Prim},
 };
 use xmltree::Element;
 
@@ -171,8 +171,8 @@ pub fn value_union(
 #[cfg(test)]
 mod tests {
     use raves_metadata_types::{
+        xmp::parse_types::XmpKind,
         xmp::{XmpElement, XmpPrimitive, XmpValue, XmpValueStructField},
-        xmp_parsing_types::XmpKind,
     };
     use xmltree::Element;
 
@@ -202,7 +202,7 @@ mod tests {
         let element = Element::parse(xml.as_bytes()).expect("xmltree should parse");
 
         // grab the `Colorant` type from our types lib
-        let colorant = &raves_metadata_types::xmp_parse_table::types::COLORANT;
+        let colorant = &raves_metadata_types::xmp::types::COLORANT;
 
         let XmpKind::Union {
             always,

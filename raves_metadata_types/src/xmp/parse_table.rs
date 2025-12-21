@@ -1,10 +1,8 @@
+use rustc_hash::FxHashMap;
 use std::sync::LazyLock;
 
-use rustc_hash::FxHashMap;
-
-use crate::xmp_parsing_types::{XmpKind as Kind, XmpPrimitiveKind as Prim};
-
-pub mod types;
+use super::parse_types::{XmpKind as Kind, XmpPrimitiveKind as Prim};
+use crate::xmp::types;
 
 /// A pair of a property's namespace URL and its element name.
 ///
