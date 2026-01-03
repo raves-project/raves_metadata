@@ -6,6 +6,19 @@ pub fn provider(input: &[u8]) -> Option<AnyProvider> {
     todo!()
 }
 
+/// Reminds contributors to add each provider to the `generate!()` call!
+///
+/// Do not implement this trait manually -- the `generate` macro will do it for
+/// you! :D
+#[doc(hidden)]
+#[diagnostic::on_unimplemented(
+    message = "Please add this type to the `generate!()` macro in the `raves_metadata/src/magic_number.rs` file."
+)]
+pub trait _MagicNumberMarker {
+    #[doc(hidden)]
+    fn _do_not_implement_this_manually(self);
+}
+
 /// This macro generates two enums and some implementations.
 ///
 /// Both enums are used to handle files in a generic way.
@@ -83,6 +96,10 @@ macro_rules! generate {
                 fn from(item: $provider_ty) -> Self {
                     Self::$variant(Ok(item))
                 }
+            }
+
+            impl _MagicNumberMarker for $provider_ty {
+                fn _do_not_implement_this_manually(self) {}
             }
         )+
 
