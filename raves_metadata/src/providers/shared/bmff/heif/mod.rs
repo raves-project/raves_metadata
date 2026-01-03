@@ -11,7 +11,7 @@ use parking_lot::RwLock;
 use winnow::{Parser as _, binary::be_u32, combinator::peek, error::EmptyError};
 
 use crate::{
-    MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw,
+    MaybeParsedExif, MaybeParsedXmp, MetadataProviderRaw,
     providers::shared::{
         bmff::{
             BoxHeader, BoxType,
@@ -45,6 +45,29 @@ impl HeifLike {
     ) -> Result<HeifLike, HeifLikeConstructionError> {
         parse_heif_like(input, supported_ftyp_entries)
     }
+
+    /// Helper associated function called by other HEIF-likes to parse the
+    /// magic number.
+    pub fn parse_magic_number(input: &[u8], supported_ftyp_entries: &[[u8; 4]]) -> bool {
+        let mut input = input;
+
+        // grab the `ftyp` box, which must be the first in the file.
+        let Some(ftyp) = FtypBox::new(&mut input) else {
+            return false;
+        };
+
+        // ensure the brand is correct
+        if !supported_ftyp_entries.contains(&ftyp.major_brand)
+            && !ftyp
+                .compatible_brands
+                .iter()
+                .any(|c| supported_ftyp_entries.contains(c))
+        {
+            return false;
+        }
+
+        true
+    }
 }
 
 impl MetadataProviderRaw for HeifLike {
@@ -54,22 +77,6 @@ impl MetadataProviderRaw for HeifLike {
 
     fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
         Arc::clone(&self.xmp)
-    }
-}
-
-impl MetadataProvider for HeifLike {
-    type ConstructionError = HeifLikeConstructionError;
-
-    /// DO NOT CALL THIS.
-    ///
-    /// Call `Self::parse` instead.
-    fn new(
-        _input: &impl AsRef<[u8]>,
-    ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
-        unreachable!(
-            "this is an implementation detail that's effectively private. \
-            please call the `parse` method instead."
-        )
     }
 }
 

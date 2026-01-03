@@ -22,97 +22,104 @@ pub struct Mov {
     xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
 }
 
+/// Parses the `ftyp` atom from the QuickTime file, if possible.
+///
+/// Used to implement `parse` and `magic_number`.
+fn parse_ftyp(input: &[u8]) -> Result<(), MovConstructionError> {
+    // try finding an `ftyp` box
+    let mut ftyp_search_input: &[u8] = input;
+
+    while !ftyp_search_input.is_empty() {
+        // grab header of this closest atom
+        let atom_header: BoxHeader = match BoxHeader::new(&mut ftyp_search_input) {
+            Ok(h) => h,
+            Err(e) => {
+                log::debug!(
+                    "Failed to parse atom header while looking for `.mov` `ftyp` atom. \
+                        Giving up. \
+                        err: {e}"
+                );
+                break;
+            }
+        };
+        log::trace!("found an atom when looking for `ftyp` header: {atom_header:#?}");
+
+        // only continue if we have a payload length (otherwise, give up on
+        // finding the ftyp; it's not here lol)
+        let Some(payload_len) = atom_header.payload_len() else {
+            log::warn!(
+                "Hit `Eof` atom in `.mov` provider, so the parser \
+                    never found an `ftyp` atom. \
+                    Continuing without verifying file type..."
+            );
+            break;
+        };
+
+        // only continue if it's an `ftyp`.
+        //
+        // otherwise, skip all the bytes and check the next atom
+        if atom_header.box_type != BoxType::Id(*b"ftyp") {
+            let Ok(()) = take::<_, _, EmptyError>(payload_len)
+                .void()
+                .parse_next(&mut ftyp_search_input)
+            else {
+                log::error!(
+                    "Failed to skip non-`ftyp` atom! \
+                        Continuing without verifying file format.."
+                );
+                break;
+            };
+            continue;
+        }
+
+        // alright, it's an `ftyp`!
+        //
+        // grab it for the below logic...
+        let Some(ftyp_atom) = FtypBox::parse_body_only(atom_header, &mut ftyp_search_input) else {
+            log::error!(
+                "Found what's supposed to be an `ftyp` atom, but its data \
+                    didn't match! Continuing without verifying file type..."
+            );
+            break;
+        };
+        log::trace!("Found an `ftyp` box: {ftyp_atom:#?}");
+
+        // whew! we've finally got the ftyp box...
+        // let's ensure this is a supported file.
+        //
+        // note that QuickTime only has one supported `ftyp` value. see:
+        //
+        // https://developer.apple.com/documentation/quicktime-file-format/file_type_compatibility_atom
+        const MOV_FORMATS: &[&[u8; 4]] = &[b"qt  "];
+        let major_is_mov = MOV_FORMATS.contains(&&ftyp_atom.major_brand);
+        let compat_with_mov = MOV_FORMATS
+            .iter()
+            .any(|fourcc| ftyp_atom.compatible_brands.contains(fourcc));
+
+        if !(major_is_mov || compat_with_mov) {
+            log::warn!(
+                "The provided file is not an MOV file. \
+                    major_brand: `{}`, \
+                    compatible_brands: `{:?}`",
+                core::str::from_utf8(&ftyp_atom.major_brand).unwrap_or_default(),
+                ftyp_atom
+                    .compatible_brands
+                    .iter()
+                    .map(|fourcc: &[u8; 4]| core::str::from_utf8(fourcc))
+            );
+            return Err(MovConstructionError::NotAMov(ftyp_atom.major_brand));
+        }
+    }
+
+    Ok(())
+}
+
 /// Parses out metadata from an MOV file.
 fn parse(mut input: &[u8]) -> Result<Mov, MovConstructionError> {
     log::trace!("MOV given input w/ len: `{}` bytes", input.len());
 
-    {
-        // try finding an `ftyp` box
-        let mut ftyp_search_input: &[u8] = input;
-
-        while !ftyp_search_input.is_empty() {
-            // grab header of this closest atom
-            let atom_header: BoxHeader = match BoxHeader::new(&mut ftyp_search_input) {
-                Ok(h) => h,
-                Err(e) => {
-                    log::debug!(
-                        "Failed to parse atom header while looking for `.mov` `ftyp` atom. \
-                        Giving up. \
-                        err: {e}"
-                    );
-                    break;
-                }
-            };
-            log::trace!("found an atom when looking for `ftyp` header: {atom_header:#?}");
-
-            // only continue if we have a payload length (otherwise, give up on
-            // finding the ftyp; it's not here lol)
-            let Some(payload_len) = atom_header.payload_len() else {
-                log::warn!(
-                    "Hit `Eof` atom in `.mov` provider, so the parser \
-                    never found an `ftyp` atom. \
-                    Continuing without verifying file type..."
-                );
-                break;
-            };
-
-            // only continue if it's an `ftyp`.
-            //
-            // otherwise, skip all the bytes and check the next atom
-            if atom_header.box_type != BoxType::Id(*b"ftyp") {
-                let Ok(()) = take::<_, _, EmptyError>(payload_len)
-                    .void()
-                    .parse_next(&mut ftyp_search_input)
-                else {
-                    log::error!(
-                        "Failed to skip non-`ftyp` atom! \
-                        Continuing without verifying file format.."
-                    );
-                    break;
-                };
-                continue;
-            }
-
-            // alright, it's an `ftyp`!
-            //
-            // grab it for the below logic...
-            let Some(ftyp_atom) = FtypBox::parse_body_only(atom_header, &mut ftyp_search_input)
-            else {
-                log::error!(
-                    "Found what's supposed to be an `ftyp` atom, but its data \
-                    didn't match! Continuing without verifying file type..."
-                );
-                break;
-            };
-            log::trace!("Found an `ftyp` box: {ftyp_atom:#?}");
-
-            // whew! we've finally got the ftyp box...
-            // let's ensure this is a supported file.
-            //
-            // note that QuickTime only has one supported `ftyp` value. see:
-            //
-            // https://developer.apple.com/documentation/quicktime-file-format/file_type_compatibility_atom
-            const MOV_FORMATS: &[&[u8; 4]] = &[b"qt  "];
-            let major_is_mov = MOV_FORMATS.contains(&&ftyp_atom.major_brand);
-            let compat_with_mov = MOV_FORMATS
-                .iter()
-                .any(|fourcc| ftyp_atom.compatible_brands.contains(fourcc));
-
-            if !(major_is_mov || compat_with_mov) {
-                log::warn!(
-                    "The provided file is not an MOV file. \
-                    major_brand: `{}`, \
-                    compatible_brands: `{:?}`",
-                    core::str::from_utf8(&ftyp_atom.major_brand).unwrap_or_default(),
-                    ftyp_atom
-                        .compatible_brands
-                        .iter()
-                        .map(|fourcc: &[u8; 4]| core::str::from_utf8(fourcc))
-                );
-                return Err(MovConstructionError::NotAMov(ftyp_atom.major_brand));
-            }
-        }
-    }
+    // check the type of the file (should be a MOV)
+    parse_ftyp(input)?;
 
     // check all the other boxes until we find what we want!
     let xmp: Option<&[u8]> = parse_atoms_until_xmp(&mut input);
@@ -289,6 +296,10 @@ impl MetadataProviderRaw for Mov {
 
 impl MetadataProvider for Mov {
     type ConstructionError = MovConstructionError;
+
+    fn magic_number(input: &[u8]) -> bool {
+        parse_ftyp(input).is_ok()
+    }
 
     /// Parses a `MOV` file for its metadata.
     fn new(

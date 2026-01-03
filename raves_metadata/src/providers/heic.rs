@@ -5,7 +5,10 @@
 //!
 //! You might prefer AVIF for better efficiency and freely permitted usage.
 
-use crate::{MetadataProvider, MetadataProviderRaw, providers::shared::bmff::heif::HeifLike};
+use crate::{
+    MetadataProvider, MetadataProviderRaw,
+    providers::shared::bmff::heif::{HeifLike, HeifLikeConstructionError},
+};
 
 const SUPPORTED_HEIC_BRANDS: &[[u8; 4]] = &[*b"heic"];
 
@@ -26,7 +29,11 @@ impl MetadataProviderRaw for Heic {
 }
 
 impl MetadataProvider for Heic {
-    type ConstructionError = <HeifLike as MetadataProvider>::ConstructionError;
+    type ConstructionError = HeifLikeConstructionError;
+
+    fn magic_number(input: &[u8]) -> bool {
+        HeifLike::parse_magic_number(input, SUPPORTED_HEIC_BRANDS)
+    }
 
     /// Constructs a HEIC representation from the given input blob.
     fn new(

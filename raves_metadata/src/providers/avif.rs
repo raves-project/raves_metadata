@@ -1,6 +1,9 @@
 //! AVIF, the "AV1 Video Format", is a high-efficiency image format.
 
-use crate::{MetadataProvider, MetadataProviderRaw, providers::shared::bmff::heif::HeifLike};
+use crate::{
+    MetadataProvider, MetadataProviderRaw,
+    providers::shared::bmff::heif::{HeifLike, HeifLikeConstructionError},
+};
 
 /// Supported brands for AVIF files.
 pub const SUPPORTED_AVIF_BRANDS: &[[u8; 4]] = &[*b"avif", *b"avis"];
@@ -22,7 +25,11 @@ impl MetadataProviderRaw for Avif {
 }
 
 impl MetadataProvider for Avif {
-    type ConstructionError = <HeifLike as MetadataProvider>::ConstructionError;
+    type ConstructionError = HeifLikeConstructionError;
+
+    fn magic_number(input: &[u8]) -> bool {
+        HeifLike::parse_magic_number(input, SUPPORTED_AVIF_BRANDS)
+    }
 
     /// Constructs a new AVIF file representation using the `input` blob.
     fn new(

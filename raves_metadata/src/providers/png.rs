@@ -38,39 +38,18 @@ impl MetadataProviderRaw for Png {
 impl MetadataProvider for Png {
     type ConstructionError = PngConstructionError;
 
+    fn magic_number(input: &[u8]) -> bool {
+        let mut input = input;
+        parse_signature(&mut input).is_ok()
+    }
+
     fn new(
         input: &impl AsRef<[u8]>,
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         let mut input = input.as_ref();
 
-        // grab the PNG signature - should be the first eight bytes.
-        //
-        // this ensures we're working with a PNG. if we don't find the signature,
-        // we'll immediately stop parsing
-        log::trace!("Attempting to parse out the PNG signature...");
-        let signature: &[u8; 8] = take(8_usize)
-            .parse_next(&mut input)
-            .map(|s| TryInto::try_into(s).unwrap_or_else(|_| unreachable!()))
-            .map_err(|e: ContextError| {
-                log::warn!(
-                    "This \"PNG\" didn't contain its required PNG signature. \
-                    Is it actually a PNG..? \
-                    err: {e}"
-                );
-                PngConstructionError::NoSignature
-            })?;
-
-        // ensure the signature is correct
-        parse_png_signature.parse(signature).map_err(|e| {
-            log::warn!(
-                "Signature obtained from given file did not match a PNG! \
-                err: {e}, \
-                found: `{signature:?}`
-                "
-            );
-            PngConstructionError::NotAPng { found: *signature }
-        })?;
-
+        // check if this is actually a PNG
+        parse_signature(&mut input)?;
         log::trace!("Found a PNG signature! Continuing with chunk parsing.");
 
         // grab metadata by parsing chunks until we've found everything
@@ -82,6 +61,38 @@ impl MetadataProvider for Png {
             xmp: Arc::new(RwLock::new(xmp.map(|r| MaybeParsedXmp::Raw(r.into())))),
         })
     }
+}
+
+fn parse_signature(input: &mut &[u8]) -> Result<(), PngConstructionError> {
+    // grab the PNG signature - should be the first eight bytes.
+    //
+    // this ensures we're working with a PNG. if we don't find the signature,
+    // we'll immediately stop parsing
+    log::trace!("Attempting to parse out the PNG signature...");
+    let signature: &[u8; 8] = take(8_usize)
+        .parse_next(input)
+        .map(|s| TryInto::try_into(s).unwrap_or_else(|_| unreachable!()))
+        .map_err(|e: ContextError| {
+            log::warn!(
+                "This \"PNG\" didn't contain its required PNG signature. \
+                Is it actually a PNG..? \
+                err: {e}"
+            );
+            PngConstructionError::NoSignature
+        })?;
+
+    // ensure the signature is correct
+    parse_png_signature.parse(signature).map_err(|e| {
+        log::warn!(
+            "Signature obtained from given file did not match a PNG! \
+            err: {e}, \
+            found: `{signature:?}`
+            "
+        );
+        PngConstructionError::NotAPng { found: *signature }
+    })?;
+
+    Ok(())
 }
 
 /// A header for a PNG "chunk"
