@@ -36,6 +36,17 @@ impl MetadataProviderRaw for Webp {
 impl MetadataProvider for Webp {
     type ConstructionError = WebpConstructionError;
 
+    fn magic_number(input: &[u8]) -> bool {
+        // make input mutable
+        let mut input = input;
+
+        // then, return:
+        //
+        // - true, if the header exists (meaning it's a WebP file!)
+        // - false, if there was no header
+        header::webp_file_header(&mut input).is_ok()
+    }
+
     fn new(
         input: &impl AsRef<[u8]>,
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {

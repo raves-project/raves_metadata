@@ -366,6 +366,19 @@ pub fn parse(input: &[u8]) -> Result<Jpeg, JpegConstructionError> {
     })
 }
 
+pub fn magic_number(input: &[u8]) -> bool {
+    let mut input = &*input;
+
+    // the first marker should be SOI if it's a JPEG!
+    if let Ok(Marker::Standalone { marker_code }) = marker(&mut input)
+        && marker_code == SOI_MARKER_CODE
+    {
+        true
+    } else {
+        false
+    }
+}
+
 /// Tries to parse out a [`Marker`].
 fn marker(input: &mut &[u8]) -> Result<Marker, JpegConstructionError> {
     // each marker must begin with one `0xFF` byte.

@@ -32,6 +32,10 @@ impl MetadataProviderRaw for Jpeg {
 impl MetadataProvider for Jpeg {
     type ConstructionError = JpegConstructionError;
 
+    fn magic_number(input: &[u8]) -> bool {
+        parse::magic_number(input)
+    }
+
     fn new(
         input: &impl AsRef<[u8]>,
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {

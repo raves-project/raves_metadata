@@ -30,6 +30,10 @@ impl MetadataProviderRaw for Mp4 {
 impl MetadataProvider for Mp4 {
     type ConstructionError = Mp4ConstructionError;
 
+    fn magic_number(input: &[u8]) -> bool {
+        parse_ftyp(input).is_ok()
+    }
+
     /// Reads the given data as an MP4 file.
     ///
     /// This operation extracts its metadata.
@@ -40,8 +44,10 @@ impl MetadataProvider for Mp4 {
     }
 }
 
-/// Parses out metadata from an MP4 file.
-fn parse(mut input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
+/// Parses out the initial filetype information box (`ftyp`).
+fn parse_ftyp(input: &[u8]) -> Result<(), Mp4ConstructionError> {
+    let mut input = input;
+
     // grab the ftyp box!
     //
     // it's almost always the first box in the file...
@@ -70,6 +76,14 @@ fn parse(mut input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
         );
         return Err(Mp4ConstructionError::NotAnMp4(first_box.major_brand));
     }
+
+    Ok(())
+}
+
+/// Parses out metadata from an MP4 file.
+fn parse(mut input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
+    // ensure we're working with an MP4 file...
+    parse_ftyp(input)?;
 
     // check all the other boxes until we find what we want!
     let raw_xmp_bytes = parse_boxes_until_xmp(&mut input);
