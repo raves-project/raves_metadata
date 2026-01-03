@@ -54,13 +54,22 @@ pub mod magic_number;
 pub mod providers;
 pub mod xmp;
 
-pub fn get(input: &impl AsRef<[u8]>) ->
+/// Attempts to
+pub fn get(input: &impl AsRef<[u8]>) -> ! {
+    loop {}
+}
 
 /// A media file with support for various metadata formats.
 ///
 /// Each file format is a "provider" - it'll yield its metadata through parsing.
 pub trait MetadataProvider:
-    Clone + core::fmt::Debug + Sized + Send + Sync + MetadataProviderRaw
+    Clone
+    + core::fmt::Debug
+    + Sized
+    + Send
+    + Sync
+    + MetadataProviderRaw
+    + magic_number::_MagicNumberMarker
 {
     /// An error that can occur when calling [`MetadataProvider::new`].
     type ConstructionError: Clone
