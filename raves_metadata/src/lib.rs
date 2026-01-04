@@ -54,9 +54,53 @@ pub mod magic_number;
 pub mod providers;
 pub mod xmp;
 
-/// Attempts to
-pub fn get(input: &impl AsRef<[u8]>) -> ! {
-    loop {}
+/// Attempts to parse the given file for any `MetadataProvider`, such as JPEG
+/// or MP4.
+///
+/// ```
+/// use raves_metadata::parse;
+/// use raves_metadata::magic_number::AnyProvider;
+///
+/// // load and parse a file
+/// # let file = include_bytes!("../assets/providers/avif/exif_xmp_after_image_blob.avif");
+/// // let file = (...);
+/// let maybe_provider: Option<AnyProvider> = parse(&file);
+///
+/// // grab its XMP metadata, for example:
+/// if let Some(ref parsed) = maybe_provider {
+///     let _xmp = parsed.xmp();
+///
+///     // use the XMP!
+///     // ...
+/// }
+///
+/// // you can also unwrap the inner type, if you want that
+/// if let Some(AnyProvider::Avif(ref _avif)) = maybe_provider {
+///     // use `Avif` object directly!
+///     // ...
+/// }
+/// ```
+#[inline(always)]
+pub fn parse(input: &impl AsRef<[u8]>) -> Option<magic_number::AnyProvider> {
+    magic_number::parse(input)
+}
+
+/// Checks the file type of the given file.
+///
+/// ```
+/// use raves_metadata::get;
+/// use raves_metadata::magic_number::MagicNumber;
+///
+/// // load a file and try to find its "magic number" (file type)
+/// # let file = include_bytes!("../assets/providers/avif/exif_xmp_after_image_blob.avif");
+/// // let file = (...);
+/// let maybe_magic_number: Option<MagicNumber> = get(&file);
+///
+/// assert_eq!(maybe_magic_number, Some(MagicNumber::Avif));
+/// ```
+#[inline(always)]
+pub fn get(input: &impl AsRef<[u8]>) -> Option<magic_number::MagicNumber> {
+    magic_number::get(input)
 }
 
 /// A media file with support for various metadata formats.
