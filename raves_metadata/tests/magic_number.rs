@@ -16,7 +16,7 @@ fn _get_and_parse() {
 
     let paths = &[
         ("assets/providers/avif/bbb_4k.avif", MagicNumber::Avif),
-        ("assets/providers/heic/C034.heic", MagicNumber::Heif),
+        ("assets/providers/heic/C034.heic", MagicNumber::Heic),
         (
             "assets/providers/jpeg/Calico_Cat_Asleep.jpg",
             MagicNumber::Jpeg,
