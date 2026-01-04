@@ -53,6 +53,7 @@ impl HeifLike {
 
         // grab the `ftyp` box, which must be the first in the file.
         let Some(ftyp) = FtypBox::new(&mut input) else {
+            log::trace!("No `ftyp` box.");
             return false;
         };
 

@@ -13,9 +13,11 @@ pub struct FtypBox {
 impl FtypBox {
     pub fn new(input: &mut &[u8]) -> Option<Self> {
         let header: BoxHeader = BoxHeader::new(input).ok()?;
+        log::trace!("Box header found.");
 
         // ensure header has right box ty
         let BoxType::Id([b'f', b't', b'y', b'p']) = header.box_type else {
+            log::trace!("Box type was not `ftyp`: {:?}", header.box_type);
             return None;
         };
 

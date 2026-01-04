@@ -63,11 +63,7 @@ fn parse_ftyp(input: &[u8]) -> Result<(), MovConstructionError> {
                 .void()
                 .parse_next(&mut ftyp_search_input)
             else {
-                log::error!(
-                    "Failed to skip non-`ftyp` atom! \
-                        Continuing without verifying file format.."
-                );
-                break;
+                return Err(MovConstructionError::NotAMov(None));
             };
             continue;
         }
@@ -107,7 +103,7 @@ fn parse_ftyp(input: &[u8]) -> Result<(), MovConstructionError> {
                     .iter()
                     .map(|fourcc: &[u8; 4]| core::str::from_utf8(fourcc))
             );
-            return Err(MovConstructionError::NotAMov(ftyp_atom.major_brand));
+            return Err(MovConstructionError::NotAMov(Some(ftyp_atom.major_brand)));
         }
     }
 
@@ -314,8 +310,8 @@ impl MetadataProvider for Mov {
 pub enum MovConstructionError {
     /// The given file isn't actually an MOV file.
     ///
-    /// Its filetype info denoted that it's something else:
-    NotAMov([u8; 4]),
+    /// Its filetype info may have denoted that it's something else.
+    NotAMov(Option<[u8; 4]>),
 }
 
 impl core::fmt::Display for MovConstructionError {
@@ -323,7 +319,8 @@ impl core::fmt::Display for MovConstructionError {
         const NOT_A_MOV_MSG: &str = "The given input isn't a QuickTime/MOV file! File type was";
 
         match self {
-            MovConstructionError::NotAMov(ftyp) => match core::str::from_utf8(ftyp) {
+            MovConstructionError::NotAMov(None) => f.write_str(NOT_A_MOV_MSG),
+            MovConstructionError::NotAMov(Some(ftyp)) => match core::str::from_utf8(ftyp) {
                 Ok(utf8_ftyp) => write!(f, "{NOT_A_MOV_MSG}: `{ftyp:?}`. (UTF-8: `{utf8_ftyp}`)"),
                 Err(_) => write!(f, "{NOT_A_MOV_MSG}: `{ftyp:?}`. (Type was not UTF-8.)"),
             },
