@@ -283,7 +283,7 @@ macro_rules! generate {
 
 generate!(
     Avif => { provider_ty: Avif },
-    Heif => { provider_ty: Heic },
+    Heic => { provider_ty: Heic },
     Jpeg => { provider_ty: Jpeg },
     Mov => { provider_ty: Mov },
     Mp4 => { provider_ty: Mp4 },
