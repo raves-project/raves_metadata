@@ -706,3 +706,57 @@ fn trailer(input: &mut &[u8]) -> Result<(), GifConstructionError> {
 
     Ok(())
 }
+
+mod helpers {
+    use winnow::{Parser, binary::u8, error::EmptyError};
+
+    use super::error::GifConstructionError;
+
+    /// Parses out an Extension Introducer.
+    pub fn extension_introducer(input: &mut &[u8]) -> Result<(), GifConstructionError> {
+        let extension_introducer: u8 = u8
+            .parse_next(input)
+            .map_err(|_: EmptyError| GifConstructionError::ExtensionMissingIntroducer)
+            .inspect_err(|_| log::error!("Extension missing introducer!"))?;
+
+        if extension_introducer != 0x21 {
+            log::error!(
+                "Extension had incorrect introducer!\
+            expected: `0x21`, got: `0x{extension_introducer:x}`"
+            );
+            return Err(GifConstructionError::ExtensionMissingLabel);
+        }
+
+        Ok(())
+    }
+
+    /// Parses out a label for the given extension type.
+    pub fn extension_label(
+        input: &mut &[u8],
+        extension_type: &'static str,
+        expected_label_value: u8,
+    ) -> Result<(), GifConstructionError> {
+        let extension_label: u8 = u8
+            .parse_next(input)
+            .map_err(|_: EmptyError| GifConstructionError::ExtensionMissingLabel)
+            .inspect_err(|_| log::error!("{extension_type} missing label!"))?;
+
+        if extension_label != expected_label_value {
+            log::error!(
+                "{extension_type} had incorrect label!\
+            expected: `0x{expected_label_value:x}`, got: `0x{extension_label:x}`"
+            );
+            return Err(GifConstructionError::ExtensionMissingLabel);
+        }
+
+        Ok(())
+    }
+
+    /// Parses out the block size byte for an extension block.
+    pub fn block_size(input: &mut &[u8]) -> Result<u8, GifConstructionError> {
+        u8.parse_next(input).map_err(|_: EmptyError| {
+            log::error!("Graphic control extension missing block size!");
+            GifConstructionError::ExtensionStoppedAbruptly(1_u8)
+        })
+    }
+}
