@@ -33,7 +33,10 @@ pub enum GifConstructionError {
     /// Found an extension block, but it ended earlier than it should have!
     ///
     /// If other programs work well with this file, please report this!
-    ExtensionStoppedAbruptly(u8),
+    ExtensionStoppedAbruptly(
+        /// The number of bytes expected to continue parsing.
+        u8,
+    ),
 
     /// The GIF 87a (1987 rev. a) specification does not support extension
     /// blocks, but one was present anyway.
