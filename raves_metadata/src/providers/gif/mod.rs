@@ -447,7 +447,9 @@ fn table_based_image_data(input: &mut &[u8]) -> Result<(), GifConstructionError>
         GifConstructionError::TableBasedImageDataNoLzw
     })?;
 
-    // parse sub-blocks til we find the terminator
+    // parse sub-blocks til we find the terminator.
+    //
+    // TODO: store offsets/indices for later rewriting
     let mut _buf: Vec<u8> = vec![];
     while let Some(b) = input.first()
         && *b != 0x00
@@ -475,48 +477,21 @@ fn graphic_control_extension(
     input: &mut &[u8],
 ) -> Result<GraphicControlExtension, GifConstructionError> {
     // extension introducer
-    {
-        let extension_introducer: u8 = u8
-            .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::GraphicExtMissingData)
-            .inspect_err(|_| log::error!("Graphic control extension missing introducer!"))?;
-        if extension_introducer != 0x21 {
-            log::error!(
-                "Graphic control extension had incorrect introducer!\
-            expected: `0x21`, got: `0x{extension_introducer:x}`"
-            );
-            return Err(GifConstructionError::GraphicExtMissingData);
-        }
-    }
+    helpers::extension_introducer.parse_next(input)?;
 
     // extension label
-    {
-        let extension_label: u8 = u8
-            .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::GraphicExtMissingData)
-            .inspect_err(|_| log::error!("Graphic control extension missing label!"))?;
-        if extension_label != 0xF9 {
-            log::error!(
-                "Graphic control extension had incorrect label!\
-            expected: `0xF9`, got: `0x{extension_label:x}`"
-            );
-            return Err(GifConstructionError::GraphicExtMissingData);
-        }
-    }
+    helpers::extension_label(input, "Graphic Control Extension", 0xF9)?;
 
     // block size
     {
-        let block_size: u8 = u8
-            .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::GraphicExtMissingData)
-            .inspect_err(|_| log::error!("Graphic control extension missing block size!"))?;
+        let block_size = helpers::block_size.parse_next(input)?;
         if block_size != 4 {
             log::error!(
                 "Graphic control extension had incorrect block size!\
             expected: `4`, got: `{block_size}`"
             );
             return Err(GifConstructionError::GraphicExtMissingData);
-        }
+        };
     }
 
     let packed: u8 = u8
@@ -557,38 +532,10 @@ struct CommentExtension {
 /// Parses a Comment Extension block.
 fn comment_extension(input: &mut &[u8]) -> Result<CommentExtension, GifConstructionError> {
     // extension introducer
-    u8.parse_next(input)
-        .map_err(|_: EmptyError| {
-            log::error!("Comment extension missing introducer!");
-            GifConstructionError::CommentExtMissingData
-        })
-        .and_then(|introducer: u8| {
-            if introducer != 0x21 {
-                log::error!(
-                    "Comment extension had incorrect introducer! \
-                        expected: `0x21`, got: `0x{introducer:x}`"
-                );
-                return Err(GifConstructionError::GraphicExtMissingData);
-            }
-            return Ok(introducer);
-        })?;
+    helpers::extension_introducer.parse_next(input)?;
 
     // extension label
-    u8.parse_next(input)
-        .map_err(|_: EmptyError| {
-            log::error!("Comment extension missing label!");
-            GifConstructionError::CommentExtMissingData
-        })
-        .and_then(|extension_label: u8| {
-            if extension_label != 0xF9 {
-                log::error!(
-                    "Comment extension had incorrect label! \
-                        expected: `0xF9`, got: `0x{extension_label:x}`"
-                );
-                return Err(GifConstructionError::GraphicExtMissingData);
-            }
-            return Ok(extension_label);
-        })?;
+    helpers::extension_label(input, "Comment Extension", 0xFE);
 
     // keep reading subblock til we find the terminator
     let mut buf: Vec<u8> = Vec::new();
@@ -705,41 +652,14 @@ struct ApplicationExtension {
 /// Parses an Application Extension block.
 fn application_extension(input: &mut &[u8]) -> Result<ApplicationExtension, GifConstructionError> {
     // extension introducer
-    {
-        let extension_introducer: u8 = u8
-            .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::AppExtMissingData)
-            .inspect_err(|_| log::error!("App extension missing introducer!"))?;
-        if extension_introducer != 0x21 {
-            log::error!(
-                "App extension had incorrect introducer!\
-            expected: `0x21`, got: `0x{extension_introducer:x}`"
-            );
-            return Err(GifConstructionError::AppExtMissingData);
-        }
-    }
+    helpers::extension_introducer.parse_next(input)?;
 
     // extension label
-    {
-        let extension_label: u8 = u8
-            .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::AppExtMissingData)
-            .inspect_err(|_| log::error!("App extension missing label!"))?;
-        if extension_label != 0xFF {
-            log::error!(
-                "App extension had incorrect label!\
-            expected: `0xFF`, got: `0x{extension_label:x}`"
-            );
-            return Err(GifConstructionError::AppExtMissingData);
-        }
-    }
+    helpers::extension_label(input, "Application Extension", 0xFF)?;
 
     // block size
     {
-        let block_size: u8 = u8
-            .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::AppExtMissingData)
-            .inspect_err(|_| log::error!("App extension missing block size!"))?;
+        let block_size: u8 = helpers::block_size.parse_next(input)?;
         if block_size != 11 {
             log::error!(
                 "App extension had incorrect block size!\
