@@ -102,6 +102,11 @@ pub enum GifConstructionError {
     /// Please check logs for more information.
     AppExtMissingData,
 
+    /// The plain text extension is missing data.
+    ///
+    /// Please check the logs for more information.
+    PlainTextExtMissingData,
+
     /// The trailer block was missing.
     TrailerMissing,
 

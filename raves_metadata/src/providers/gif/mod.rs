@@ -601,10 +601,100 @@ fn comment_extension(input: &mut &[u8]) -> Result<CommentExtension, GifConstruct
     Ok(CommentExtension { data: buf })
 }
 
-struct PlainTextExtension {}
+struct PlainTextExtension {
+    text_grid_left_position: u16,
+    text_grid_top_position: u16,
+    text_grid_width: u16,
+    text_grid_height: u16,
+
+    character_cell_width: u8,
+    character_cell_height: u8,
+
+    text_foreground_color_index: u8,
+    text_background_color_index: u8,
+
+    plain_text_data: Vec<u8>,
+}
 
 /// Parses a Plain Text Extension block.
-fn plain_text_extension(input: &mut &[u8]) -> Result<ApplicationExtension, GifConstructionError> {}
+fn plain_text_extension(input: &mut &[u8]) -> Result<PlainTextExtension, GifConstructionError> {
+    // extension introducer
+    helpers::extension_introducer.parse_next(input)?;
+
+    // plain text label (0x01)
+    helpers::extension_label(input, "Plain Text Extension", 0x01)?;
+
+    // block size
+    match helpers::block_size(input) {
+        Err(e) => return Err(e),
+        Ok(12) => (),
+        Ok(other) => {
+            log::error!(
+                "Plain text extension had a wrong block size! \
+                Expected `12`, got `{other}`."
+            );
+            return Err(GifConstructionError::ExtensionHasWeirdBlockSize(other));
+        }
+    };
+
+    let text_grid_left_position: u16 = le_u16.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing text grid left position.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+    let text_grid_top_position: u16 = le_u16.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing text grid top position.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+    let text_grid_width: u16 = le_u16.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing text grid width.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+    let text_grid_height: u16 = le_u16.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing text grid height.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+
+    let character_cell_width: u8 = u8.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing character cell width.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+    let character_cell_height: u8 = u8.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing character cell height.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+
+    let text_foreground_color_index: u8 = u8.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing text foreground color index.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+    let text_background_color_index: u8 = u8.parse_next(input).map_err(|_: EmptyError| {
+        log::error!("Plain text extension missing text background color index.");
+        GifConstructionError::PlainTextExtMissingData
+    })?;
+
+    // actually read the text data
+    let mut plain_text_data: Vec<u8> = vec![];
+    while let Some(b) = input.first()
+        && *b != 0x00
+    {
+        data_sub_block(input, &mut plain_text_data)?;
+    }
+
+    // finally, eat the block terminator
+    block_terminator.parse_next(input)?;
+
+    Ok(PlainTextExtension {
+        text_grid_left_position,
+        text_grid_top_position,
+        text_grid_width,
+        text_grid_height,
+        character_cell_width,
+        character_cell_height,
+        text_foreground_color_index,
+        text_background_color_index,
+        plain_text_data,
+    })
+}
 
 struct ApplicationExtension {
     application_identifier: [u8; 8],
