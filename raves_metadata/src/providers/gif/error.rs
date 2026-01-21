@@ -38,6 +38,22 @@ pub enum GifConstructionError {
         u8,
     ),
 
+    /// An extension block was detected, but, somehow, its introducer was
+    /// missing.
+    ///
+    /// Please report this on the GitHub issues page.
+    ExtensionMissingIntroducer,
+
+    /// The extension label, which distinguishes between different extensions,
+    /// was missing.
+    ExtensionMissingLabel,
+
+    /// Extension had an unexpected block size.
+    ExtensionHasWeirdBlockSize(
+        /// The block size reported.
+        u8,
+    ),
+
     /// The GIF 87a (1987 rev. a) specification does not support extension
     /// blocks, but one was present anyway.
     ExtensionFoundInGif87,
