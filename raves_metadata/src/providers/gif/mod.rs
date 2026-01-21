@@ -442,15 +442,21 @@ fn local_color_table(size: u8, input: &mut &[u8]) -> Result<LocalColorTable, Gif
 
 /// Parses table-based image data.
 fn table_based_image_data(input: &mut &[u8]) -> Result<(), GifConstructionError> {
-    let lzw_min_code_size: u8 = u8.parse_next(input).map_err(|e: EmptyError| {
+    let _lzw_min_code_size: u8 = u8.parse_next(input).map_err(|_e: EmptyError| {
         log::error!("Table-based image data is missing its LWZ minimum code size field!");
         GifConstructionError::TableBasedImageDataNoLzw
     })?;
 
-    // TODO: how the heck do you parse the subsequent Data Sub-Blocks?
-    //
-    // there's no Block Terminator to say when to stop 😭😭
-    todo!();
+    // parse sub-blocks til we find the terminator
+    let mut _buf: Vec<u8> = vec![];
+    while let Some(b) = input.first()
+        && *b != 0x00
+    {
+        data_sub_block(input, &mut _buf)?;
+    }
+
+    // eat the terminator
+    block_terminator.parse_next(input)?;
 
     Ok(())
 }
