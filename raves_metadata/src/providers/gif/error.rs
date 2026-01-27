@@ -21,7 +21,7 @@ pub enum GifConstructionError {
     /// The LSD said that there should be a GCT, but a triplet was missing.
     NoGct {
         /// The number of RGB triplets expected in the GCT.
-        expected_triplet_ct: u8,
+        expected_triplet_ct: u16,
 
         /// The triplet that wasn't found.
         errant_triplet: u8,

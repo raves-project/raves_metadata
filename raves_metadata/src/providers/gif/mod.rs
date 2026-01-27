@@ -257,7 +257,7 @@ fn logical_screen_descriptor(
         .inspect_err(|_e: &EmptyError| log::warn!("Logical screen descriptor has no packed field!"))
         .map_err(|_e: EmptyError| GifConstructionError::LogicalScreenDescriptorMissingData)?;
     let global_color_table_flag: bool = (packed & 0b0000_0001) == 0b0000_0001;
-    let color_resolution: u8 = ((packed & 0b0000_1110) >> 1) + 1; // TODO: should this add +1?
+    let color_resolution: u8 = ((packed & 0b0000_1110) >> 1) + 1;
     let sort_flag: bool = (packed & 0b0001_0000) == 0b0001_0000;
     let size_of_global_color_table: u8 = (packed & 0b1110_0000) >> 5;
 
@@ -307,15 +307,14 @@ pub enum GctMissingColor {
 /// Only present if `LogicalScreenDescriptor.global_color_table_flag` is
 /// `true`.
 fn global_color_table(
-    size_of_global_color_table_plus_one: u8,
-    todo_SHOULD_THE_ABOVE_HAVE_PLUS_ONE_OR_DOES_THAT_OFFSET_TO_256_I_THINK_IT_DOES: (),
+    size_of_global_color_table: u8,
     input: &mut &[u8],
 ) -> Result<GlobalColorTable, GifConstructionError> {
-    let triplet_ct: u8 = 2_u8.pow(size_of_global_color_table_plus_one as u32);
+    let triplet_ct: u16 = 2_u16.pow(size_of_global_color_table as u32 + 1_u32);
     let mut v: Vec<(u8, u8, u8)> = Vec::with_capacity(triplet_ct as usize);
 
     // define color getter (helper closure)
-    let mut get_color = |color_name: &'static str, color: GctMissingColor, triplet_num: u8| {
+    let mut get_color = |color_name: &'static str, color: GctMissingColor, triplet_num: u16| {
         u8.parse_next(input)
             .inspect_err(|_e: &EmptyError| {
                 log::warn!(
@@ -324,7 +323,7 @@ fn global_color_table(
             })
             .map_err(|_e: EmptyError| GifConstructionError::NoGct {
                 expected_triplet_ct: triplet_ct,
-                errant_triplet: triplet_num,
+                errant_triplet: triplet_num as u8,
                 missing_color: color,
             })
     };
@@ -437,7 +436,7 @@ type LocalColorTable = GlobalColorTable;
 
 /// Parses the Local Color Table block.
 fn local_color_table(size: u8, input: &mut &[u8]) -> Result<LocalColorTable, GifConstructionError> {
-    global_color_table(size, (), input)
+    global_color_table(size, input)
 }
 
 /// Parses table-based image data.
