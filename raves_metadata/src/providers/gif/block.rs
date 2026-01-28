@@ -205,19 +205,20 @@ pub(super) fn global_color_table(
     let mut v: Vec<(u8, u8, u8)> = Vec::with_capacity(triplet_ct as usize);
 
     // define color getter (helper closure)
-    let mut get_color = |color_name: &'static str, color: GctMissingColor, triplet_num: u16| {
-        u8.parse_next(input)
+    let mut get_color =
+        |color_name: &'static str, color: GctMissingColor, triplet_num: u16| {
+            u8.parse_next(input)
             .inspect_err(|_e: &EmptyError| {
                 log::warn!(
                     "Global color table missing {color_name} at triplet {triplet_num}/{triplet_ct}!"
                 )
             })
-            .map_err(|_e: EmptyError| GifConstructionError::NoGct {
+            .map_err(|_e: EmptyError| GifConstructionError::GlobalColorTableMissingTriplet {
                 expected_triplet_ct: triplet_ct,
                 errant_triplet: triplet_num as u8,
                 missing_color: color,
             })
-    };
+        };
 
     // find and set each triplet
     for triplet_num in 0..triplet_ct {
@@ -485,7 +486,10 @@ pub(super) fn plain_text_extension(
                 "Plain text extension had a wrong block size! \
                 Expected `12`, got `{other}`."
             );
-            return Err(GifConstructionError::ExtensionHasWeirdBlockSize(other));
+            return Err(GifConstructionError::ExtensionHasWeirdBlockSize {
+                got: other,
+                expected: 12_u8,
+            });
         }
     };
 
@@ -606,11 +610,11 @@ pub(super) fn application_extension(
     // end with block terminator
     block_terminator(input)?;
 
-    return Ok(ApplicationExtension {
+    Ok(ApplicationExtension {
         application_identifier: app_ident,
         application_authentication_code: app_auth_code,
         application_data: buf,
-    });
+    })
 }
 
 /// Parses the Trailer block.
@@ -621,7 +625,12 @@ pub(super) fn trailer(input: &mut &[u8]) -> Result<(), GifConstructionError> {
         .inspect_err(|_| log::error!("Trailer block is completely missing!"))?;
 
     if value != 0x3b {
-        return Err(GifConstructionError::TrailerIncorrectValue(value));
+        log::error!(
+            "Found an unexpected trailer value. \
+            Found `0x{value:x}`, but expected `0x3b`. \
+            This is an implementation problem, so please report this message it as a bug!"
+        );
+        return Err(GifConstructionError::TrailerMissing);
     }
 
     Ok(())
@@ -638,15 +647,16 @@ pub(super) mod helpers {
 
         let extension_introducer: u8 = u8
             .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::ExtensionMissingIntroducer)
+            .map_err(|_: EmptyError| GifConstructionError::NotEnoughBytes)
             .inspect_err(|_| log::error!("Extension missing introducer!"))?;
 
         if extension_introducer != 0x21 {
             log::error!(
-                "Extension had incorrect introducer!\
-            expected: `0x21`, got: `0x{extension_introducer:x}`"
+                "Extension had incorrect introducer! \
+            expected: `0x21`, got: `0x{extension_introducer:x}`. \
+            This is a bug. Please report it on GitHub."
             );
-            return Err(GifConstructionError::ExtensionMissingLabel);
+            return Err(GifConstructionError::NotEnoughBytes);
         }
 
         Ok(())
@@ -662,7 +672,7 @@ pub(super) mod helpers {
 
         let extension_label: u8 = u8
             .parse_next(input)
-            .map_err(|_: EmptyError| GifConstructionError::ExtensionMissingLabel)
+            .map_err(|_: EmptyError| GifConstructionError::NotEnoughBytes)
             .inspect_err(|_| log::error!("{extension_type} missing label!"))?;
 
         if extension_label != expected_label_value {
@@ -670,7 +680,9 @@ pub(super) mod helpers {
                 "{extension_type} had incorrect label!\
             expected: `0x{expected_label_value:x}`, got: `0x{extension_label:x}`"
             );
-            return Err(GifConstructionError::ExtensionMissingLabel);
+            return Err(GifConstructionError::UnknownExtensionFound {
+                label: extension_label,
+            });
         }
 
         Ok(())
@@ -682,7 +694,7 @@ pub(super) mod helpers {
 
         u8.parse_next(input).map_err(|_: EmptyError| {
             log::error!("Graphic control extension missing block size!");
-            GifConstructionError::ExtensionStoppedAbruptly(1_u8)
+            GifConstructionError::NotEnoughBytes
         })
     }
 }

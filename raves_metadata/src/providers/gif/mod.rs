@@ -189,7 +189,6 @@ impl MetadataProvider for Gif {
             // error and warn the user!
             let Some(first_byte) = input.first().copied() else {
                 log::error!("The GIF ended suddenly, doing so without a trailer (end) block!");
-                let _TODO = (); // TODO: make an err variant for this
                 return Err(GifConstructionError::NotEnoughBytes);
             };
 

@@ -19,7 +19,7 @@ pub enum GifConstructionError {
     LogicalScreenDescriptorMissingData,
 
     /// The LSD said that there should be a GCT, but a triplet was missing.
-    NoGct {
+    GlobalColorTableMissingTriplet {
         /// The number of RGB triplets expected in the GCT.
         expected_triplet_ct: u16,
 
@@ -42,29 +42,14 @@ pub enum GifConstructionError {
         label: u8,
     },
 
-    /// Found an extension block, but it ended earlier than it should have!
-    ///
-    /// If other programs work well with this file, please report this!
-    ExtensionStoppedAbruptly(
-        /// The number of bytes expected to continue parsing.
-        u8,
-    ),
-
-    /// An extension block was detected, but, somehow, its introducer was
-    /// missing.
-    ///
-    /// Please report this on the GitHub issues page.
-    ExtensionMissingIntroducer,
-
-    /// The extension label, which distinguishes between different extensions,
-    /// was missing.
-    ExtensionMissingLabel,
-
     /// Extension had an unexpected block size.
-    ExtensionHasWeirdBlockSize(
+    ExtensionHasWeirdBlockSize {
         /// The block size reported.
-        u8,
-    ),
+        got: u8,
+
+        /// The block size expected by the extension type.
+        expected: u8,
+    },
 
     /// The GIF 87a (1987 rev. a) specification does not support extension
     /// blocks, but one was present anyway.
@@ -121,14 +106,6 @@ pub enum GifConstructionError {
 
     /// The trailer block was missing.
     TrailerMissing,
-
-    /// The Traler block had an incorrect (unexpected) value.
-    ///
-    /// It should be 0x3b.
-    TrailerIncorrectValue(
-        /// The (incorrect) value we found.
-        u8,
-    ),
 }
 
 impl core::error::Error for GifConstructionError {}
