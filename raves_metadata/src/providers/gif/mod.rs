@@ -746,7 +746,7 @@ fn comment_extension(input: &mut &[u8]) -> Result<CommentExtension, GifConstruct
     helpers::extension_introducer.parse_next(input)?;
 
     // extension label
-    helpers::extension_label(input, "Comment Extension", 0xFE);
+    helpers::extension_label(input, "Comment Extension", 0xFE)?;
 
     // keep reading subblock til we find the terminator
     let mut buf: Vec<u8> = Vec::new();
