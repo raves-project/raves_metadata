@@ -30,6 +30,18 @@ pub enum GifConstructionError {
         missing_color: GctMissingColor,
     },
 
+    /// Unknown block found during the repeatable block section.
+    UnknownBlockFound {
+        /// The block's first byte.
+        byte: u8,
+    },
+
+    /// Unknown extension type found during the repeatable block section.
+    UnknownExtensionFound {
+        /// The block's label byte.
+        label: u8,
+    },
+
     /// Found an extension block, but it ended earlier than it should have!
     ///
     /// If other programs work well with this file, please report this!
