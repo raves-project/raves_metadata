@@ -1,6 +1,5 @@
 //! Provider implementation for GIF, the Graphics Interchange Format.
 
-mod blocks;
 mod error;
 
 use parking_lot::RwLock;
@@ -13,10 +12,24 @@ use error::GifConstructionError;
 /// A parsed GIF (Graphics Interchange Format) file.
 #[derive(Clone, Debug)]
 pub struct Gif {
-    /// The version number of the GIF.
+    /// The GIF's header.
+    header: GifHeader,
+
+    /// This file's logical screen descriptor block.
+    logical_screen_descriptor: LogicalScreenDescriptor,
+
+    /// The file's global color table block, if present.
+    global_color_table: Option<GlobalColorTable>,
+
+    /// A number of repeatable blocks.
     ///
-    /// This should be `87a` or `89a`, but can be something else.
-    version: [char; 3],
+    /// This may be empty, but likely contains at least the image data of the
+    /// GIF. It may also contain things like metadata and other information.
+    ///
+    /// **NOTE**: If XMP was found in the file, it was removed from this list
+    /// and provided through the typical API. **Please refrain from iterating
+    /// over this list to find XMP data -- you won't find any.**
+    repeatable_blocks: Vec<RepeatableBlock>,
 
     /// Stored XMP.
     ///
@@ -25,13 +38,98 @@ pub struct Gif {
     xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
 }
 
+/// Any block in the GIF file after the header, logical screen descriptor, and
+/// (optional) global color table.
+///
+/// Any of these blocks can be repeated multiple times until we hit the trailer
+/// (end) block.
+#[derive(Clone, Debug)]
+pub enum RepeatableBlock {
+    /// The block(s) that come after a graphic control extension was found, if
+    /// present, or are simply present themselves.
+    Graphic {
+        /// The graphic control extension itself, if present.
+        graphic_control_extension: Option<GraphicControlExtension>,
+
+        /// Either an image data block or a plain text extension.
+        suffix: RepeatableGraphicBlock,
+    },
+
+    /// An application extension block.
+    ApplicationExtension(ApplicationExtension),
+
+    /// A comment extension block.
+    CommentExtension(CommentExtension),
+}
+
+/// Either the image data or a plain text extension.
+///
+/// Comes after the graphic control extension, or on its own, in the "repeating
+/// blocks" part of the file.
+#[derive(Clone, Debug)]
+pub enum RepeatableGraphicBlock {
+    /// Image data.
+    Image {
+        /// Image descriptor.
+        image_descriptor: ImageDescriptor,
+
+        /// The local color table, if present.
+        local_color_table: Option<LocalColorTable>,
+
+        // TODO: hold input buf bounds? or should we actually store data here?
+        //
+        // (gifs tend to be small, at least for the heap, so idk...)
+        /// Image data.
+        image_data: (),
+    },
+
+    /// A plain text extension.
+    PlainTextExtension(
+        /// The inner [`PlainTextExtension`].
+        ///
+        /// Stored in-line.
+        PlainTextExtension,
+    ),
+}
+
+impl RepeatableGraphicBlock {
+    fn image(input: &mut &[u8]) -> Result<Self, GifConstructionError> {
+        // parse the image descriptor
+        let image_descriptor = image_descriptor(input)?;
+
+        // if the image descriptor notes that there should be a
+        // local color table, parse that
+        let local_color_table = if image_descriptor.local_color_table_flag {
+            Some(local_color_table(
+                image_descriptor.size_of_local_color_table,
+                input,
+            )?)
+        } else {
+            None
+        };
+
+        // then, skip over the image data
+        table_based_image_data(input)?;
+
+        Ok(Self::Image {
+            image_descriptor,
+            local_color_table,
+            image_data: (),
+        })
+    }
+
+    fn plain_text(input: &mut &[u8]) -> Result<Self, GifConstructionError> {
+        Ok(Self::PlainTextExtension(plain_text_extension(input)?))
+    }
+}
+
 impl Gif {
     /// Returns the "version" string of this GIF.
     ///
     /// Note that it can _technically_ be any value, though GIF only intends
     /// the value to be `87a` or `89a`.
-    pub fn version(&self) -> &[char; 3] {
-        &self.version
+    pub fn version(&self) -> [char; 3] {
+        self.header.version.map(From::from)
     }
 }
 
@@ -56,67 +154,182 @@ impl MetadataProvider for Gif {
         let input: &mut &[u8] = &mut input.as_ref();
 
         // parse header
-        let header = header.parse_next(input)?;
+        let header: GifHeader = header.parse_next(input)?;
 
-        // ignore logical screen desc (required to be after header)
-        let logical_screen_descriptor = logical_screen_descriptor.parse_next(input)?;
+        // parse out the logical screen desc (required to be after header)
+        let logical_screen_descriptor: LogicalScreenDescriptor =
+            logical_screen_descriptor.parse_next(input)?;
 
-        // parse (ignore) the gct, if it's there
-        if let Some(gct_size) = maybe_gct_size {
-            gct(gct_size, input)?;
-        }
-
-        // now, skip through all the images and other nonsense to find metadata
-        let mut xmp: Option<MaybeParsedXmp> = None;
-        while !input.is_empty() {
-            // check first byte of each block
-            let Ok(first_byte): Result<u8, EmptyError> = u8.parse_next(input) else {
-                log::trace!("Outta data for extension! (no first byte)");
-                break;
+        // parse the gct, if present
+        let global_color_table: Option<GlobalColorTable> =
+            if logical_screen_descriptor.global_color_table_flag {
+                Some(global_color_table(
+                    logical_screen_descriptor.size_of_global_color_table,
+                    input,
+                )?)
+            } else {
+                None
             };
 
-            // based on that byte, run different parser...
+        // parse all the "repeatable blocks"
+        let mut repeatable_blocks: Vec<RepeatableBlock> = Vec::new();
+        loop {
+            // grab a new byte.
+            //
+            // if we're at the end of the file, that's very bad -- we don't
+            // have a trailer (end) block!
+            //
+            // error and warn the user!
+            let Some(first_byte) = input.first().copied() else {
+                log::error!("The GIF ended suddenly, doing so without a trailer (end) block!");
+                let _TODO = (); // TODO: make an err variant for this
+                return Err(GifConstructionError::NotEnoughBytes);
+            };
+
+            // if we've found the trailer, stop parsing!
+            if first_byte == 0x3b {
+                log::trace!("Found trailer (end) block for GIF file. Stopping.");
+                trailer(input)?;
+                break;
+            }
+
+            const EXTENSION_INTRODUCER: u8 = 0x21;
+            const IMAGE_DESCRIPTOR_INTRODUCER: u8 = 0x2c;
+
+            const GRAPHIC_CONTROL_EXTENSION_LABEL: u8 = 0xf9;
+            const PLAIN_TEXT_EXTENSION_LABEL: u8 = 0x01;
+            const APPLICATION_EXTENSION_LABEL: u8 = 0xff;
+            const COMMENT_EXTENSION_LABEL: u8 = 0xfe;
+
+            // alright, let's grab the next available repeatable block...
+            let repeatable_block: RepeatableBlock;
             match first_byte {
-                0x21 => {
-                    // the next byte is the extension ident byte
-                    let Ok(second_byte): Result<u8, EmptyError> = u8.parse_next(input) else {
-                        log::error!("Outta data for extension! (no second byte)");
-                        return Err(GifConstructionError::ExtensionStoppedAbruptly(first_byte));
+                //
+                //
+                //
+                //
+                // image descriptor
+                b if b == IMAGE_DESCRIPTOR_INTRODUCER => {
+                    repeatable_block = RepeatableBlock::Graphic {
+                        graphic_control_extension: None,
+                        suffix: RepeatableGraphicBlock::image(input)?,
+                    }
+                }
+
+                //
+                //
+                //
+                //
+                // any extension
+                b if b == EXTENSION_INTRODUCER => {
+                    // GIF 87a doesn't support extensions. error if such a GIF tries to use em
+                    if header.version == *b"87a" {
+                        return Err(GifConstructionError::ExtensionFoundInGif87);
+                    }
+
+                    // grab the second byte to see which extension it is!
+                    let Some(second_byte) = input.get(1).copied() else {
+                        log::error!("GIF should have another byte for extension/image data.");
+                        return Err(GifConstructionError::NotEnoughBytes);
                     };
 
-                    // check second byte to check the kind of extension
                     match second_byte {
-                        // application extension (can contain XMP!)
-                        0xFF => {
-                            if ver != *b"89a" {
-                                log::error!(
-                                    "An extension was found, but the version is `87a`, which doesn't support them."
-                                );
-                                return Err(GifConstructionError::ExtensionFoundInGif87);
-                            }
+                        c if c == GRAPHIC_CONTROL_EXTENSION_LABEL => {
+                            // parse the graphic control extension
+                            let graphic_control_extension = Some(graphic_control_extension(input)?);
 
-                            let maybe_xmp = application_extension(input)?;
-                            if let Some(found_xmp) = maybe_xmp {
-                                xmp = Some(found_xmp);
-                            }
-                            break;
+                            // grab the next byte to see if it's an image desc. or a
+                            // plain text ext.
+                            let Some(next_byte) = input.first().copied() else {
+                                log::error!(
+                                    "GIF should have another byte for extension/image data."
+                                );
+                                return Err(GifConstructionError::NotEnoughBytes);
+                            };
+
+                            repeatable_block = RepeatableBlock::Graphic {
+                                graphic_control_extension,
+                                suffix: match next_byte {
+                                    b if b == IMAGE_DESCRIPTOR_INTRODUCER => {
+                                        RepeatableGraphicBlock::image(input)?
+                                    }
+
+                                    b if b == PLAIN_TEXT_EXTENSION_LABEL => {
+                                        RepeatableGraphicBlock::plain_text(input)?
+                                    }
+
+                                    other => {
+                                        log::error!(
+                                            "After parsing the graphic control extension, \
+                                            found an unexpected block type: `0x{other:x}`"
+                                        );
+                                        return Err(GifConstructionError::UnknownBlockFound {
+                                            byte: other,
+                                        });
+                                    }
+                                },
+                            };
                         }
 
-                        _ => {
-                            let t = todo!();
+                        c if c == PLAIN_TEXT_EXTENSION_LABEL => {
+                            repeatable_block = RepeatableBlock::Graphic {
+                                graphic_control_extension: None,
+                                suffix: RepeatableGraphicBlock::PlainTextExtension(
+                                    plain_text_extension(input)?,
+                                ),
+                            };
+                        }
+
+                        c if c == APPLICATION_EXTENSION_LABEL => {
+                            repeatable_block = RepeatableBlock::ApplicationExtension(
+                                application_extension(input)?,
+                            );
+                        }
+
+                        c if c == COMMENT_EXTENSION_LABEL => {
+                            repeatable_block =
+                                RepeatableBlock::CommentExtension(comment_extension(input)?);
+                        }
+
+                        other => {
+                            log::error!(
+                                "In repeatable block section, found an unexpected \
+                                extension type: `0x{other:x}`"
+                            );
+                            return Err(GifConstructionError::UnknownExtensionFound {
+                                label: other,
+                            });
                         }
                     }
                 }
 
+                //
+                //
+                //
+                //
+                // error! unexpected block found...
                 other => {
-                    log::error!("Unknown block identifier: `0x{other:x}`")
+                    log::error!(
+                        "In repeatable block section, found an unexpected block \
+                        type: `0x{other:x}`"
+                    );
+                    return Err(GifConstructionError::UnknownBlockFound { byte: other });
                 }
             }
+
+            repeatable_blocks.push(repeatable_block);
         }
 
+        // parse out any potential XMP from what we've found
+        let _TODO = ();
+        //TODO
+
         Ok(Gif {
-            version: ver.map(char::from),
-            xmp: Arc::new(RwLock::new(xmp)),
+            header,
+            logical_screen_descriptor,
+            global_color_table,
+            repeatable_blocks: vec![],
+            xmp: Arc::new(RwLock::new(None)),
         })
     }
 }
@@ -184,7 +397,8 @@ fn block_terminator(input: &mut &[u8]) -> Result<(), GifConstructionError> {
     Ok(())
 }
 
-struct GifHeader {
+#[derive(Clone, Debug)]
+pub struct GifHeader {
     version: [u8; 3],
 }
 
@@ -220,7 +434,8 @@ fn header(input: &mut &[u8]) -> Result<GifHeader, GifConstructionError> {
     Ok(GifHeader { version })
 }
 
-struct LogicalScreenDescriptor {
+#[derive(Clone, Debug)]
+pub struct LogicalScreenDescriptor {
     logical_screen_width: u16,
 
     logical_screen_height: u16,
@@ -291,7 +506,8 @@ fn logical_screen_descriptor(
     })
 }
 
-struct GlobalColorTable {
+#[derive(Clone, Debug)]
+pub struct GlobalColorTable {
     rgb_triplets: Vec<(u8, u8, u8)>,
 }
 
@@ -351,7 +567,8 @@ fn global_color_table(
     Ok(GlobalColorTable { rgb_triplets: v })
 }
 
-struct ImageDescriptor {
+#[derive(Clone, Debug)]
+pub struct ImageDescriptor {
     image_left_position: u16,
 
     image_top_position: u16,
@@ -462,7 +679,8 @@ fn table_based_image_data(input: &mut &[u8]) -> Result<(), GifConstructionError>
     Ok(())
 }
 
-struct GraphicControlExtension {
+#[derive(Clone, Debug)]
+pub struct GraphicControlExtension {
     disposal_method: u8,
     user_input_flag: bool,
     transparent_color_flag: bool,
@@ -524,7 +742,8 @@ fn graphic_control_extension(
     })
 }
 
-struct CommentExtension {
+#[derive(Clone, Debug)]
+pub struct CommentExtension {
     data: Vec<u8>,
 }
 
@@ -547,7 +766,8 @@ fn comment_extension(input: &mut &[u8]) -> Result<CommentExtension, GifConstruct
     Ok(CommentExtension { data: buf })
 }
 
-struct PlainTextExtension {
+#[derive(Clone, Debug)]
+pub struct PlainTextExtension {
     text_grid_left_position: u16,
     text_grid_top_position: u16,
     text_grid_width: u16,
@@ -642,7 +862,8 @@ fn plain_text_extension(input: &mut &[u8]) -> Result<PlainTextExtension, GifCons
     })
 }
 
-struct ApplicationExtension {
+#[derive(Clone, Debug)]
+pub struct ApplicationExtension {
     application_identifier: [u8; 8],
     application_authentication_code: [u8; 3],
     application_data: Vec<u8>,
