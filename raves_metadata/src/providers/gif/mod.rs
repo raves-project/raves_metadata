@@ -342,6 +342,8 @@ impl MetadataProviderRaw for Gif {
 
 /// the magic number should be `b"GIF"`.
 fn signature(input: &mut &[u8]) -> Result<(), GifConstructionError> {
+    log::trace!("Parsing: signature.");
+
     let bytes: [u8; 3] = take::<_, _, EmptyError>(3_usize)
         .parse_next(input)
         .ok()
@@ -363,6 +365,8 @@ fn signature(input: &mut &[u8]) -> Result<(), GifConstructionError> {
 
 /// Parses a Data Sub-Block.
 fn data_sub_block(input: &mut &[u8], output: &mut Vec<u8>) -> Result<(), GifConstructionError> {
+    log::trace!("Parsing: data sub-block.");
+
     // grab sub-block data
     let slice: &[u8] = u8
         .parse_next(input)
@@ -425,7 +429,7 @@ fn header(input: &mut &[u8]) -> Result<GifHeader, GifConstructionError> {
     }
 
     // ck signature (`GIF`)
-    _ = signature(input)?;
+    signature(input)?;
 
     // grab version
     let version: [u8; 3] = gif_version(input)?;
@@ -453,6 +457,8 @@ pub struct LogicalScreenDescriptor {
 fn logical_screen_descriptor(
     input: &mut &[u8],
 ) -> Result<LogicalScreenDescriptor, GifConstructionError> {
+    log::trace!("Parsing: logical screen descriptor.");
+
     let logical_screen_width: u16 = le_u16
         .parse_next(input)
         .inspect_err(|_e: &EmptyError| {
@@ -526,6 +532,8 @@ fn global_color_table(
     size_of_global_color_table: u8,
     input: &mut &[u8],
 ) -> Result<GlobalColorTable, GifConstructionError> {
+    log::trace!("Parsing: global color table.");
+
     let triplet_ct: u16 = 2_u16.pow(size_of_global_color_table as u32 + 1_u32);
     let mut v: Vec<(u8, u8, u8)> = Vec::with_capacity(triplet_ct as usize);
 
@@ -579,6 +587,8 @@ pub struct ImageDescriptor {
 
 /// Parses the Image Descriptor block.
 fn image_descriptor(input: &mut &[u8]) -> Result<ImageDescriptor, GifConstructionError> {
+    log::trace!("Parsing: image descriptor.");
+
     // grab and check image separator (constant value)
     const IMAGE_SEPARATOR: u8 = 0x2c;
     let image_separator: u8 = u8
@@ -646,11 +656,14 @@ type LocalColorTable = GlobalColorTable;
 
 /// Parses the Local Color Table block.
 fn local_color_table(size: u8, input: &mut &[u8]) -> Result<LocalColorTable, GifConstructionError> {
+    log::trace!("Parsing: local color table.");
     global_color_table(size, input)
 }
 
 /// Parses table-based image data.
 fn table_based_image_data(input: &mut &[u8]) -> Result<(), GifConstructionError> {
+    log::trace!("Parsing: table-based image data.");
+
     let _lzw_min_code_size: u8 = u8.parse_next(input).map_err(|_e: EmptyError| {
         log::error!("Table-based image data is missing its LWZ minimum code size field!");
         GifConstructionError::TableBasedImageDataNoLzw
@@ -686,6 +699,8 @@ pub struct GraphicControlExtension {
 fn graphic_control_extension(
     input: &mut &[u8],
 ) -> Result<GraphicControlExtension, GifConstructionError> {
+    log::trace!("Parsing: graphic control extension.");
+
     // extension introducer
     helpers::extension_introducer.parse_next(input)?;
 
@@ -742,6 +757,8 @@ pub struct CommentExtension {
 
 /// Parses a Comment Extension block.
 fn comment_extension(input: &mut &[u8]) -> Result<CommentExtension, GifConstructionError> {
+    log::trace!("Parsing: comment extension.");
+
     // extension introducer
     helpers::extension_introducer.parse_next(input)?;
 
@@ -777,6 +794,8 @@ pub struct PlainTextExtension {
 
 /// Parses a Plain Text Extension block.
 fn plain_text_extension(input: &mut &[u8]) -> Result<PlainTextExtension, GifConstructionError> {
+    log::trace!("Parsing: plain text extension.");
+
     // extension introducer
     helpers::extension_introducer.parse_next(input)?;
 
@@ -864,6 +883,8 @@ pub struct ApplicationExtension {
 
 /// Parses an Application Extension block.
 fn application_extension(input: &mut &[u8]) -> Result<ApplicationExtension, GifConstructionError> {
+    log::trace!("Parsing: application extension.");
+
     // extension introducer
     helpers::extension_introducer.parse_next(input)?;
 
@@ -937,6 +958,8 @@ mod helpers {
 
     /// Parses out an Extension Introducer.
     pub fn extension_introducer(input: &mut &[u8]) -> Result<(), GifConstructionError> {
+        log::trace!("Parsing: extension introducer.");
+
         let extension_introducer: u8 = u8
             .parse_next(input)
             .map_err(|_: EmptyError| GifConstructionError::ExtensionMissingIntroducer)
@@ -959,6 +982,8 @@ mod helpers {
         extension_type: &'static str,
         expected_label_value: u8,
     ) -> Result<(), GifConstructionError> {
+        log::trace!("Parsing: extension label.");
+
         let extension_label: u8 = u8
             .parse_next(input)
             .map_err(|_: EmptyError| GifConstructionError::ExtensionMissingLabel)
@@ -977,6 +1002,8 @@ mod helpers {
 
     /// Parses out the block size byte for an extension block.
     pub fn block_size(input: &mut &[u8]) -> Result<u8, GifConstructionError> {
+        log::trace!("Parsing: block size.");
+
         u8.parse_next(input).map_err(|_: EmptyError| {
             log::error!("Graphic control extension missing block size!");
             GifConstructionError::ExtensionStoppedAbruptly(1_u8)
