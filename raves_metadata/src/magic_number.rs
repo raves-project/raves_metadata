@@ -46,7 +46,7 @@
 //! ```
 
 use crate::providers::{
-    avif::Avif, heic::Heic, jpeg::Jpeg, mov::Mov, mp4::Mp4, png::Png, webp::Webp,
+    avif::Avif, gif::Gif, heic::Heic, jpeg::Jpeg, mov::Mov, mp4::Mp4, png::Png, webp::Webp,
 };
 
 /// Reminds contributors to add each provider to the `generate!()` call!
@@ -289,4 +289,5 @@ generate!(
     Mp4 => { provider_ty: Mp4 },
     Png => { provider_ty: Png },
     Webp => { provider_ty: Webp },
+    Gif => { provider_ty: Gif },
 );
