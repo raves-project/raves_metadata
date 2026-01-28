@@ -1,4 +1,4 @@
-use crate::providers::gif::GctMissingColor;
+use crate::providers::gif::block::GctMissingColor;
 
 /// An error obtained when parsing a GIF file.
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
