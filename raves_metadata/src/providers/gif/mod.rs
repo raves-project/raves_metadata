@@ -440,17 +440,17 @@ fn header(input: &mut &[u8]) -> Result<GifHeader, GifConstructionError> {
 
 #[derive(Clone, Debug)]
 pub struct LogicalScreenDescriptor {
-    logical_screen_width: u16,
+    pub logical_screen_width: u16,
 
-    logical_screen_height: u16,
+    pub logical_screen_height: u16,
 
-    global_color_table_flag: bool,
-    color_resolution: u8, // range: 1..=4
-    sort_flag: bool,
-    size_of_global_color_table: u8,
+    pub global_color_table_flag: bool,
+    pub color_resolution: u8, // range: 1..=4
+    pub sort_flag: bool,
+    pub size_of_global_color_table: u8,
 
-    background_color_index: u8,
-    pixel_aspect_ratio: Option<u8>,
+    pub background_color_index: u8,
+    pub pixel_aspect_ratio: Option<u8>,
 }
 
 /// Parses the Logical Screen Descriptor.
@@ -514,7 +514,7 @@ fn logical_screen_descriptor(
 
 #[derive(Clone, Debug)]
 pub struct GlobalColorTable {
-    rgb_triplets: Vec<(u8, u8, u8)>,
+    pub rgb_triplets: Vec<(u8, u8, u8)>,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -570,17 +570,17 @@ fn global_color_table(
 
 #[derive(Clone, Debug)]
 pub struct ImageDescriptor {
-    image_left_position: u16,
+    pub image_left_position: u16,
 
-    image_top_position: u16,
+    pub image_top_position: u16,
 
-    image_width: u16,
+    pub image_width: u16,
 
-    image_height: u16,
+    pub image_height: u16,
 
     local_color_table_flag: bool,
-    interlace_flag: bool,
-    sort_flag: bool,
+    pub interlace_flag: bool,
+    pub sort_flag: bool,
 
     size_of_local_color_table: u8,
 }
@@ -687,13 +687,13 @@ fn table_based_image_data(input: &mut &[u8]) -> Result<(), GifConstructionError>
 
 #[derive(Clone, Debug)]
 pub struct GraphicControlExtension {
-    disposal_method: u8,
-    user_input_flag: bool,
-    transparent_color_flag: bool,
+    pub disposal_method: u8,
+    pub user_input_flag: bool,
+    pub transparent_color_flag: bool,
 
-    delay_time: u16,
+    pub delay_time: u16,
 
-    transparent_color_index: u8,
+    pub transparent_color_index: u8,
 }
 
 fn graphic_control_extension(
@@ -752,7 +752,7 @@ fn graphic_control_extension(
 
 #[derive(Clone, Debug)]
 pub struct CommentExtension {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 /// Parses a Comment Extension block.
@@ -778,18 +778,18 @@ fn comment_extension(input: &mut &[u8]) -> Result<CommentExtension, GifConstruct
 
 #[derive(Clone, Debug)]
 pub struct PlainTextExtension {
-    text_grid_left_position: u16,
-    text_grid_top_position: u16,
-    text_grid_width: u16,
-    text_grid_height: u16,
+    pub text_grid_left_position: u16,
+    pub text_grid_top_position: u16,
+    pub text_grid_width: u16,
+    pub text_grid_height: u16,
 
-    character_cell_width: u8,
-    character_cell_height: u8,
+    pub character_cell_width: u8,
+    pub character_cell_height: u8,
 
-    text_foreground_color_index: u8,
-    text_background_color_index: u8,
+    pub text_foreground_color_index: u8,
+    pub text_background_color_index: u8,
 
-    plain_text_data: Vec<u8>,
+    pub plain_text_data: Vec<u8>,
 }
 
 /// Parses a Plain Text Extension block.
@@ -876,9 +876,9 @@ fn plain_text_extension(input: &mut &[u8]) -> Result<PlainTextExtension, GifCons
 
 #[derive(Clone, Debug)]
 pub struct ApplicationExtension {
-    application_identifier: [u8; 8],
-    application_authentication_code: [u8; 3],
-    application_data: Vec<u8>,
+    pub application_identifier: [u8; 8],
+    pub application_authentication_code: [u8; 3],
+    pub application_data: Vec<u8>,
 }
 
 /// Parses an Application Extension block.
