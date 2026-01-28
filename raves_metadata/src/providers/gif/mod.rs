@@ -471,10 +471,10 @@ fn logical_screen_descriptor(
         .parse_next(input)
         .inspect_err(|_e: &EmptyError| log::warn!("Logical screen descriptor has no packed field!"))
         .map_err(|_e: EmptyError| GifConstructionError::LogicalScreenDescriptorMissingData)?;
-    let global_color_table_flag: bool = (packed & 0b0000_0001) == 0b0000_0001;
-    let color_resolution: u8 = ((packed & 0b0000_1110) >> 1) + 1;
-    let sort_flag: bool = (packed & 0b0001_0000) == 0b0001_0000;
-    let size_of_global_color_table: u8 = (packed & 0b1110_0000) >> 5;
+    let global_color_table_flag: bool = (packed & 0b1000_0000) == 0b1000_0000;
+    let color_resolution: u8 = ((packed & 0b0111_0000) >> 4) + 1;
+    let sort_flag: bool = (packed & 0b0000_1000) == 0b0000_1000;
+    let size_of_global_color_table: u8 = packed & 0b0000_0111;
 
     let background_color_index: u8 = u8
         .parse_next(input)
@@ -545,7 +545,7 @@ fn global_color_table(
     };
 
     // find and set each triplet
-    for triplet_num in 0..=triplet_ct {
+    for triplet_num in 0..triplet_ct {
         // grab each color in triplet
         let (red, green, blue): (u8, u8, u8) = (
             get_color("red", GctMissingColor::Red, triplet_num)?,
@@ -554,14 +554,7 @@ fn global_color_table(
         );
 
         // set in the list
-        debug_assert!(triplet_num as usize <= v.len());
-        match v.get_mut(triplet_num as usize) {
-            Some(s) => *s = (red, green, blue),
-            None => log::error!(
-                "Global color table: implementation error. \
-                Index out of bounds. Please report this!"
-            ),
-        }
+        v.insert(triplet_num as usize, (red, green, blue));
     }
 
     Ok(GlobalColorTable { rgb_triplets: v })
@@ -631,11 +624,11 @@ fn image_descriptor(input: &mut &[u8]) -> Result<ImageDescriptor, GifConstructio
         .inspect_err(|_e: &EmptyError| log::error!("Image descriptor had no packed field!"))
         .map_err(|_e: EmptyError| GifConstructionError::ImageDescriptorMissingData)?;
 
-    let local_color_table_flag: bool = packed & 0b0000_0001 == 0b0000_0001;
-    let interlace_flag: bool = packed & 0b0000_0010 == 0b0000_0010;
-    let sort_flag: bool = packed & 0b0000_0100 == 0b0000_0100;
+    let local_color_table_flag: bool = packed & 0b1000_0000 == 0b1000_0000;
+    let interlace_flag: bool = packed & 0b0100_0000 == 0b0100_0000;
+    let sort_flag: bool = packed & 0b0010_0000 == 0b0010_0000;
     let _reserved = ();
-    let size_of_local_color_table: u8 = (packed & 0b1110_0000) >> 5;
+    let size_of_local_color_table: u8 = packed & 0b0000_0111;
 
     Ok(ImageDescriptor {
         image_left_position,
