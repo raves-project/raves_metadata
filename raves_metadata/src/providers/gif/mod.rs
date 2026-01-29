@@ -327,16 +327,86 @@ impl MetadataProvider for Gif {
             repeatable_blocks.push(repeatable_block);
         }
 
-        // parse out any potential XMP from what we've found
-        let _TODO = ();
-        //TODO
+        // parse out any potential XMP from what we've found.
+        //
+        // this parsing is kinda weird:
+        //
+        // 1. get app extensions
+        // 2. find a b"XMP Data" app id
+        // 3. look for insane "magic trailer" (who came up with this, maaaan)
+        // 4. parse out the XMP blob
+        let mut xmp = None;
+        for block_idx in 0..repeatable_blocks.len() {
+            // grab block from vec
+            let block: &RepeatableBlock = &repeatable_blocks[block_idx];
+
+            let RepeatableBlock::ApplicationExtension(ext) = block else {
+                continue;
+            };
+
+            if ext.application_identifier == *b"XMP Data" {
+                log::trace!("Found XMP data application identifier!");
+            } else {
+                continue;
+            }
+
+            if ext.application_authentication_code == *b"XMP" {
+                log::trace!("Found XMP data authentication code!");
+            } else {
+                continue;
+            }
+
+            const MAGIC_TRAILER: [u8; 258] = {
+                let mut arr: [u8; 258] = [0x00; 258];
+
+                // set the first byte (0x01)
+                arr[0] = 0x01;
+
+                // state
+                let mut idx: usize = 1;
+                let mut k: u8 = 0xFF;
+
+                // count down from 0xFF to 0x00.
+                //
+                // ("magic trailer" takes advantage of GIF spec's blocks)
+                while k != 0x00 {
+                    arr[idx] = k;
+                    k -= 1;
+                    idx += 1;
+                }
+
+                // note: the last two bytes are already 0x00.
+                // return the prep'd array
+                arr
+            };
+
+            if ext
+                .application_data
+                .ends_with(&[0x03, 0x02, 0x01, 0x00, 0x00])
+            {
+                log::trace!("Found likely XMP packet! Confirming...");
+            } else {
+                continue;
+            }
+
+            if ext.application_data.ends_with(&MAGIC_TRAILER) {
+                log::trace!("XMP packet found!");
+                xmp = Some(MaybeParsedXmp::Raw(
+                    ext.application_data[..ext.application_data.len() - MAGIC_TRAILER.len()]
+                        .to_vec(),
+                ));
+                repeatable_blocks.remove(block_idx);
+            } else {
+                continue;
+            }
+        }
 
         Ok(Gif {
             header,
             logical_screen_descriptor,
             global_color_table,
             repeatable_blocks: vec![],
-            xmp: Arc::new(RwLock::new(None)),
+            xmp: Arc::new(RwLock::new(xmp)),
         })
     }
 }
