@@ -601,6 +601,50 @@ pub(super) fn application_extension(
         })
         .inspect_err(|_| log::error!("App extension missing application auth code!"))?;
 
+    // non-compliant writers can omit the subblocks and just use a "raw" byte
+    // stream.
+    //
+    // soo, prepare for that, too
+    if app_ident == *b"XMP Data" && app_auth_code == *b"XMP" {
+        const MAGIC_TRAILER_NO_BLOCK_TERMINATOR: [u8; 257] = {
+            let mut arr: [u8; 257] = [0x00; 257];
+
+            arr[0] = 0x01;
+
+            let mut idx: usize = 1;
+            let mut k: u8 = 0xFF;
+            loop {
+                arr[idx] = k;
+                idx += 1;
+                if k == 0x00 {
+                    break;
+                }
+                k -= 1;
+            }
+
+            arr
+        };
+
+        let remaining: &[u8] = input;
+        if let Some(trailer_start) = remaining
+            .windows(MAGIC_TRAILER_NO_BLOCK_TERMINATOR.len())
+            .position(|window| window == MAGIC_TRAILER_NO_BLOCK_TERMINATOR)
+        {
+            let data_end: usize = trailer_start + MAGIC_TRAILER_NO_BLOCK_TERMINATOR.len();
+            let application_data: Vec<u8> = remaining[..data_end].to_vec();
+            *input = &remaining[data_end..];
+
+            // eat gif block terminator after the raw XMP payload
+            block_terminator(input)?;
+
+            return Ok(ApplicationExtension {
+                application_identifier: app_ident,
+                application_authentication_code: app_auth_code,
+                application_data,
+            });
+        }
+    }
+
     // read data sub-blocks until we reach this block's terminator
     let mut buf: Vec<u8> = Vec::new();
     while input[0] != 0x00 {
@@ -677,7 +721,7 @@ pub(super) mod helpers {
 
         if extension_label != expected_label_value {
             log::error!(
-                "{extension_type} had incorrect label!\
+                "{extension_type} had incorrect label! \
             expected: `0x{expected_label_value:x}`, got: `0x{extension_label:x}`"
             );
             return Err(GifConstructionError::UnknownExtensionFound {

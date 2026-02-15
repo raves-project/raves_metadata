@@ -180,6 +180,7 @@ impl MetadataProvider for Gif {
 
         // parse all the "repeatable blocks"
         let mut repeatable_blocks: Vec<RepeatableBlock> = Vec::new();
+        let mut pending_graphic_control_extension: Option<GraphicControlExtension> = None;
         loop {
             // grab a new byte.
             //
@@ -208,7 +209,7 @@ impl MetadataProvider for Gif {
             const COMMENT_EXTENSION_LABEL: u8 = 0xfe;
 
             // alright, let's grab the next available repeatable block...
-            let repeatable_block: RepeatableBlock;
+            let repeatable_block: Option<RepeatableBlock>;
             match first_byte {
                 //
                 //
@@ -216,10 +217,10 @@ impl MetadataProvider for Gif {
                 //
                 // image descriptor
                 b if b == IMAGE_DESCRIPTOR_INTRODUCER => {
-                    repeatable_block = RepeatableBlock::Graphic {
-                        graphic_control_extension: None,
+                    repeatable_block = Some(RepeatableBlock::Graphic {
+                        graphic_control_extension: pending_graphic_control_extension.take(),
                         suffix: RepeatableGraphicBlock::image(input)?,
-                    }
+                    })
                 }
 
                 //
@@ -241,61 +242,34 @@ impl MetadataProvider for Gif {
 
                     match second_byte {
                         c if c == GRAPHIC_CONTROL_EXTENSION_LABEL => {
-                            // parse the graphic control extension
-                            let graphic_control_extension =
+                            // parse and retain this for the next graphic rendering block
+                            // (which is either an image descriptor or plain
+                            // text extension).
+                            //
+                            // other extension can appear between, so gotta
+                            // remember what came first
+                            pending_graphic_control_extension =
                                 Some(block::graphic_control_extension(input)?);
-
-                            // grab the next byte to see if it's an image desc. or a
-                            // plain text ext.
-                            let Some(next_byte) = input.first().copied() else {
-                                log::error!(
-                                    "GIF should have another byte for extension/image data."
-                                );
-                                return Err(GifConstructionError::NotEnoughBytes);
-                            };
-
-                            repeatable_block = RepeatableBlock::Graphic {
-                                graphic_control_extension,
-                                suffix: match next_byte {
-                                    b if b == IMAGE_DESCRIPTOR_INTRODUCER => {
-                                        RepeatableGraphicBlock::image(input)?
-                                    }
-
-                                    b if b == PLAIN_TEXT_EXTENSION_LABEL => {
-                                        RepeatableGraphicBlock::plain_text(input)?
-                                    }
-
-                                    other => {
-                                        log::error!(
-                                            "After parsing the graphic control extension, \
-                                            found an unexpected block type: `0x{other:x}`"
-                                        );
-                                        return Err(GifConstructionError::UnknownBlockFound {
-                                            byte: other,
-                                        });
-                                    }
-                                },
-                            };
+                            repeatable_block = None;
                         }
 
                         c if c == PLAIN_TEXT_EXTENSION_LABEL => {
-                            repeatable_block = RepeatableBlock::Graphic {
-                                graphic_control_extension: None,
-                                suffix: RepeatableGraphicBlock::PlainTextExtension(
-                                    block::plain_text_extension(input)?,
-                                ),
-                            };
+                            repeatable_block = Some(RepeatableBlock::Graphic {
+                                graphic_control_extension: pending_graphic_control_extension.take(),
+                                suffix: RepeatableGraphicBlock::plain_text(input)?,
+                            });
                         }
 
                         c if c == APPLICATION_EXTENSION_LABEL => {
-                            repeatable_block = RepeatableBlock::ApplicationExtension(
+                            repeatable_block = Some(RepeatableBlock::ApplicationExtension(
                                 block::application_extension(input)?,
-                            );
+                            ));
                         }
 
                         c if c == COMMENT_EXTENSION_LABEL => {
-                            repeatable_block =
-                                RepeatableBlock::CommentExtension(block::comment_extension(input)?);
+                            repeatable_block = Some(RepeatableBlock::CommentExtension(
+                                block::comment_extension(input)?,
+                            ));
                         }
 
                         other => {
@@ -324,7 +298,9 @@ impl MetadataProvider for Gif {
                 }
             }
 
-            repeatable_blocks.push(repeatable_block);
+            if let Some(repeatable_block) = repeatable_block {
+                repeatable_blocks.push(repeatable_block);
+            }
         }
 
         // parse out any potential XMP from what we've found.
@@ -336,23 +312,27 @@ impl MetadataProvider for Gif {
         // 3. look for insane "magic trailer" (who came up with this, maaaan)
         // 4. parse out the XMP blob
         let mut xmp = None;
-        for block_idx in 0..repeatable_blocks.len() {
+        let mut block_idx: usize = 0;
+        while block_idx < repeatable_blocks.len() {
             // grab block from vec
             let block: &RepeatableBlock = &repeatable_blocks[block_idx];
 
             let RepeatableBlock::ApplicationExtension(ext) = block else {
+                block_idx += 1;
                 continue;
             };
 
             if ext.application_identifier == *b"XMP Data" {
                 log::trace!("Found XMP data application identifier!");
             } else {
+                block_idx += 1;
                 continue;
             }
 
             if ext.application_authentication_code == *b"XMP" {
                 log::trace!("Found XMP data authentication code!");
             } else {
+                block_idx += 1;
                 continue;
             }
 
@@ -380,24 +360,45 @@ impl MetadataProvider for Gif {
                 arr
             };
 
-            if ext
-                .application_data
-                .ends_with(&[0x03, 0x02, 0x01, 0x00, 0x00])
-            {
-                log::trace!("Found likely XMP packet! Confirming...");
-            } else {
-                continue;
-            }
+            const MAGIC_TRAILER_NO_BLOCK_TERMINATOR: [u8; 257] = {
+                let mut arr: [u8; 257] = [0x00; 257];
 
-            if ext.application_data.ends_with(&MAGIC_TRAILER) {
+                arr[0] = 0x01;
+
+                let mut idx: usize = 1;
+                let mut k: u8 = 0xFF;
+                loop {
+                    arr[idx] = k;
+                    idx += 1;
+                    if k == 0x00 {
+                        break;
+                    }
+                    k -= 1;
+                }
+
+                arr
+            };
+
+            let magic_trailer_len = if ext.application_data.ends_with(&MAGIC_TRAILER) {
+                Some(MAGIC_TRAILER.len())
+            } else if ext
+                .application_data
+                .ends_with(&MAGIC_TRAILER_NO_BLOCK_TERMINATOR)
+            {
+                Some(MAGIC_TRAILER_NO_BLOCK_TERMINATOR.len())
+            } else {
+                None
+            };
+
+            if let Some(magic_trailer_len) = magic_trailer_len {
                 log::trace!("XMP packet found!");
                 xmp = Some(MaybeParsedXmp::Raw(
-                    ext.application_data[..ext.application_data.len() - MAGIC_TRAILER.len()]
-                        .to_vec(),
+                    ext.application_data[..ext.application_data.len() - magic_trailer_len].to_vec(),
                 ));
                 repeatable_blocks.remove(block_idx);
-            } else {
                 continue;
+            } else {
+                block_idx += 1;
             }
         }
 
@@ -419,7 +420,9 @@ impl MetadataProviderRaw for Gif {
 
 #[cfg(test)]
 mod tests {
-    use crate::{MetadataProvider, util::logger};
+    use raves_metadata_types::xmp::XmpElement;
+
+    use crate::{MetadataProvider, magic_number::AnyProvider, util::logger};
 
     #[test]
     fn sample_gif() {
