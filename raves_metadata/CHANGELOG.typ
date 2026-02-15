@@ -2,6 +2,10 @@
 
 This file is ordered from newest to oldest.
 
+== v0.0.4
+
+Add support for the GIF file format.
+
 == v0.0.3
 
 Use the newest version of `raves_metdata_types`.
