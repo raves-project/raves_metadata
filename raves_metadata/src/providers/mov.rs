@@ -294,12 +294,12 @@ impl MetadataProvider for Mov {
         parse(input.as_ref())
     }
 
-    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
-        &None
+    fn exif(&self) -> Option<Result<&crate::exif::Exif, &crate::exif::error::ExifFatalError>> {
+        None
     }
 
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
-        &self.xmp
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>> {
+        self.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -344,7 +344,6 @@ mod tests {
 
         let xmp = mov
             .xmp()
-            .clone()
             .expect("the file contains xmp")
             .expect("the xmp ctor should succeed");
 

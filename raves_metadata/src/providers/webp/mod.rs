@@ -174,12 +174,12 @@ impl MetadataProvider for Webp {
         Ok(s)
     }
 
-    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
-        &self.exif
+    fn exif(&self) -> Option<Result<&Exif, &ExifFatalError>> {
+        self.exif.as_ref().map(|r| r.as_ref())
     }
 
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
-        &self.xmp
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>> {
+        self.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -340,7 +340,6 @@ mod tests {
         // parse the xmp
         let xmp = webp
             .xmp()
-            .clone()
             .expect("XMP is supported _and_ provided in the file")
             .expect("the XMP should construct correctly");
 
@@ -379,7 +378,6 @@ mod tests {
         // parse the xmp
         let xmp = webp
             .xmp()
-            .clone()
             .expect("XMP is supported _and_ provided in the file")
             .expect("the XMP should construct correctly");
 
@@ -421,14 +419,10 @@ mod tests {
         let file = include_bytes!("../../../assets/providers/webp/RIFF.webp");
         let webp: Webp = Webp::new(file).unwrap();
 
-        let exif = webp
-            .exif()
-            .clone()
-            .expect("file has exif")
-            .expect("exif is valid");
+        let exif = webp.exif().expect("file has exif").expect("exif is valid");
 
         assert_eq!(
-            exif,
+            *exif,
             Exif {
                 endianness: Endianness::Big,
                 ifds: vec![Ifd {

@@ -416,12 +416,12 @@ impl MetadataProvider for Gif {
         })
     }
 
-    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
-        &None
+    fn exif(&self) -> Option<Result<&Exif, &ExifFatalError>> {
+        None
     }
 
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
-        &self.xmp
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>> {
+        self.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -464,7 +464,6 @@ mod tests {
 
         let xmp = gif
             .xmp()
-            .clone()
             .expect("XMP should be present")
             .expect("xmp should have parsed correctly");
 
@@ -540,7 +539,6 @@ mod tests {
 
         let xmp = gif
             .xmp()
-            .clone()
             .expect("XMP should be present")
             .expect("xmp should have parsed correctly");
 

@@ -34,12 +34,12 @@ impl MetadataProvider for Jpeg {
         parse::parse(input.as_ref())
     }
 
-    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
-        &self.exif
+    fn exif(&self) -> Option<Result<&Exif, &ExifFatalError>> {
+        self.exif.as_ref().map(|r| r.as_ref())
     }
 
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
-        &self.xmp
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>> {
+        self.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -74,8 +74,8 @@ mod tests {
         let file = include_bytes!("../../../assets/providers/jpeg/Calico_Cat_Asleep.jpg");
         let jpeg = Jpeg::new(file).unwrap();
 
-        let exif = jpeg.exif().clone().unwrap().unwrap();
-        let xmp = jpeg.xmp().clone().unwrap().unwrap();
+        let exif = jpeg.exif().unwrap().unwrap();
+        let xmp = jpeg.xmp().unwrap().unwrap();
 
         assert_eq!(
             exif.ifds
@@ -132,7 +132,7 @@ mod tests {
         );
         let jpeg = Jpeg::new(file).unwrap();
 
-        let exif = jpeg.exif().clone().unwrap().unwrap();
+        let exif = jpeg.exif().unwrap().unwrap();
 
         assert_eq!(
             exif.ifds
@@ -171,7 +171,7 @@ mod tests {
         // this file contains extended xmp, but no actual extendedxmp blocks.
         //
         // let's grab the concatenated version we made
-        let xmp = jpeg.xmp().clone().unwrap().unwrap();
+        let xmp = jpeg.xmp().unwrap().unwrap();
 
         // should still contain the original tags.
         //
@@ -202,7 +202,7 @@ mod tests {
         // this file contains extended xmp, but no actual extendedxmp blocks.
         //
         // let's grab the concatenated version we made
-        let xmp = jpeg.xmp().clone().unwrap().unwrap();
+        let xmp = jpeg.xmp().unwrap().unwrap();
 
         assert!(
             xmp.document()

@@ -153,13 +153,13 @@ macro_rules! generate {
             /// For more information, see:
             ///
             /// [`MetadataProvider::exif`][`crate::MetadataProvider::exif`]
-            pub fn exif(&self) -> &Option<Result<crate::Exif, crate::ExifFatalError>> {
+            pub fn exif(&self) -> Option<Result<&crate::Exif, &crate::ExifFatalError>> {
                 match self {
                     $(
                         Self::$variant(maybe_inner) => {
                             let Ok(inner) = maybe_inner else {
                                 ::log::error!("The inner provider is an error, not `Ok`. Cannot get metadata.");
-                                return &None;
+                                return None;
                             };
                             <$provider_ty as $crate::MetadataProvider>::exif(inner)
                         },
@@ -173,13 +173,13 @@ macro_rules! generate {
             /// For more information, see:
             ///
             /// [`MetadataProvider::iptc`][`crate::MetadataProvider::iptc`]
-            pub fn iptc(&self) -> &Option<Result<crate::Iptc, crate::IptcError>> {
+            pub fn iptc(&self) -> Option<Result<&crate::Iptc, &crate::IptcError>> {
                 match self {
                     $(
                         Self::$variant(maybe_inner) => {
                             let Ok(inner) = maybe_inner else {
                                 ::log::error!("The inner provider is an error, not `Ok`. Cannot get metadata.");
-                                return &None;
+                                return None;
                             };
                             <$provider_ty as $crate::MetadataProvider>::iptc(inner)
                         },
@@ -193,13 +193,13 @@ macro_rules! generate {
             /// For more information, see:
             ///
             /// [`MetadataProvider::xmp`][`crate::MetadataProvider::xmp`]
-            pub fn xmp(&self) -> &Option<Result<crate::Xmp, crate::XmpError>> {
+            pub fn xmp(&self) -> Option<Result<&crate::Xmp, &crate::XmpError>> {
                 match self {
                     $(
                         Self::$variant(maybe_inner) => {
                             let Ok(inner) = maybe_inner else {
                                 ::log::error!("The inner provider is an error, not `Ok`. Cannot get metadata.");
-                                return &None;
+                                return None;
                             };
                             <$provider_ty as $crate::MetadataProvider>::xmp(inner)
                         },

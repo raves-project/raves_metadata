@@ -131,7 +131,7 @@ pub trait MetadataProvider:
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>>;
+    fn exif(&self) -> Option<Result<&Exif, &ExifFatalError>>;
 
     /// Parses `self` to find any IPTC metadata.
     ///
@@ -144,13 +144,13 @@ pub trait MetadataProvider:
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn iptc(&self) -> &Option<Result<Iptc, IptcError>> {
+    fn iptc(&self) -> Option<Result<&Iptc, &IptcError>> {
         log::error!(
             "Attempted to parse for IPTC, but IPTC IIC isn't \
             implemented in this library yet. \
             Returning None..."
         );
-        &None
+        None
     }
 
     /// Parses `self` to find any XMP metadata.
@@ -162,7 +162,7 @@ pub trait MetadataProvider:
     ///
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>>;
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>>;
 
     /// Indicates whether the given input matches the magic number of this
     /// provider.
