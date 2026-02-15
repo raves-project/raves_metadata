@@ -93,6 +93,18 @@ impl Xmp {
         Ok(Self { document })
     }
 
+    /// Attempts to parse the given byte slice as an XML string.
+    ///
+    /// Then, tries to parse the XML as an XMP document.
+    pub fn new_from_bytes(bytes: &[u8]) -> Result<Self, XmpError> {
+        let s: &str = core::str::from_utf8(bytes).map_err(|e| {
+            log::error!("Failed to parse given byte slice as UTF-8! err: {e}");
+            XmpError::NotUtf8
+        })?;
+
+        Self::new(s)
+    }
+
     /// Returns the underlying XML document.
     pub fn document(&self) -> &XmpDocument {
         &self.document
