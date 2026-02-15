@@ -5,13 +5,12 @@
 //!
 //! <https://github.com/spacestation93/heif_howto>
 
-use std::{collections::HashMap, fmt::Write as _, sync::Arc};
+use std::{collections::HashMap, fmt::Write as _};
 
-use parking_lot::RwLock;
 use winnow::{Parser as _, binary::be_u32, combinator::peek, error::EmptyError};
 
 use crate::{
-    MaybeParsedExif, MaybeParsedXmp, MetadataProviderRaw,
+    exif::{Exif, error::ExifFatalError},
     providers::shared::{
         bmff::{
             BoxHeader, BoxType,
@@ -24,6 +23,7 @@ use crate::{
         },
         desc,
     },
+    xmp::{Xmp, error::XmpError},
 };
 
 mod iinf;
@@ -34,8 +34,8 @@ mod search;
 /// A HEIF-like file.
 #[derive(Clone, Debug)]
 pub struct HeifLike {
-    exif: Arc<RwLock<Option<MaybeParsedExif>>>,
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
+    pub exif: Option<Result<Exif, ExifFatalError>>,
+    pub xmp: Option<Result<Xmp, XmpError>>,
 }
 
 impl HeifLike {
@@ -68,16 +68,6 @@ impl HeifLike {
         }
 
         true
-    }
-}
-
-impl MetadataProviderRaw for HeifLike {
-    fn exif_raw(&self) -> Arc<RwLock<Option<MaybeParsedExif>>> {
-        Arc::clone(&self.exif)
-    }
-
-    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
     }
 }
 
@@ -132,8 +122,8 @@ fn parse_heif_like<'input>(
                 No metadata to find, so returning!"
             );
             return Ok(HeifLike {
-                exif: Arc::new(const { RwLock::new(None) }),
-                xmp: Arc::new(const { RwLock::new(None) }),
+                exif: None,
+                xmp: None,
             });
         }
 
@@ -260,8 +250,8 @@ fn parse_heif_like<'input>(
             Returning blank metadata."
         );
         return Ok(HeifLike {
-            exif: Arc::new(const { RwLock::new(None) }),
-            xmp: Arc::new(const { RwLock::new(None) }),
+            exif: None,
+            xmp: None,
         });
     };
 
@@ -272,8 +262,8 @@ fn parse_heif_like<'input>(
             Returning blank metadata."
         );
         return Ok(HeifLike {
-            exif: Arc::new(const { RwLock::new(None) }),
-            xmp: Arc::new(const { RwLock::new(None) }),
+            exif: None,
+            xmp: None,
         });
     };
 
@@ -291,16 +281,8 @@ fn parse_heif_like<'input>(
     })?;
 
     Ok(HeifLike {
-        exif: Arc::new(RwLock::new(
-            metadata_blobs
-                .exif
-                .map(|raw| MaybeParsedExif::Raw(raw.to_vec())),
-        )),
-        xmp: Arc::new(RwLock::new(
-            metadata_blobs
-                .xmp
-                .map(|raw| MaybeParsedXmp::Raw(raw.to_vec())),
-        )),
+        exif: metadata_blobs.exif.map(|mut raw| Exif::new(&mut raw)),
+        xmp: metadata_blobs.xmp.map(Xmp::new_from_bytes),
     })
 }
 

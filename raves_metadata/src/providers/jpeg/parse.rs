@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use parking_lot::RwLock;
 use winnow::{
     Parser,
     binary::{be_u16, be_u32, u8},
@@ -9,7 +8,7 @@ use winnow::{
 };
 
 use crate::{
-    MaybeParsedExif, MaybeParsedXmp, Wrapped,
+    exif::{Exif, error::ExifFatalError},
     xmp::{Xmp, error::XmpError, get_rdf_descriptions},
 };
 
@@ -89,7 +88,7 @@ pub fn parse(input: &[u8]) -> Result<Jpeg, JpegConstructionError> {
         }
     };
 
-    let mut exif: Option<_> = None;
+    let mut exif: Option<Vec<u8>> = None;
     let mut xmp: Option<JpegXmp> = None;
 
     // loop until the end of the file.
@@ -209,7 +208,7 @@ pub fn parse(input: &[u8]) -> Result<Jpeg, JpegConstructionError> {
 
                         // set the raw exif value
                         if exif.is_none() {
-                            exif = Some(MaybeParsedExif::Raw(payload.to_vec()));
+                            exif = Some(payload.to_vec());
                         } else {
                             log::warn!("Found more than one Exif payload in JPEG...");
                         }
@@ -350,20 +349,19 @@ pub fn parse(input: &[u8]) -> Result<Jpeg, JpegConstructionError> {
         }
     }
 
-    let xmp = if let Some(x) = xmp {
+    let xmp: Option<Result<Xmp, XmpError>> = if let Some(x) = xmp {
         if !x.extended.is_empty() {
-            Some(concat_xmp(x)?)
+            Some(Ok(concat_xmp(x)?))
         } else {
-            x.standard.map(MaybeParsedXmp::Raw)
+            x.standard.map(|r| Xmp::new_from_bytes(r.as_slice()))
         }
     } else {
         None
     };
 
-    Ok(Jpeg {
-        exif: Arc::new(RwLock::new(exif)),
-        xmp: Arc::new(RwLock::new(xmp)),
-    })
+    let exif: Option<Result<Exif, ExifFatalError>> = exif.map(|r| Exif::new(&mut r.as_slice()));
+
+    Ok(Jpeg { exif, xmp })
 }
 
 pub fn magic_number(input: &[u8]) -> bool {
@@ -450,7 +448,7 @@ fn marker(input: &mut &[u8]) -> Result<Marker, JpegConstructionError> {
 }
 
 /// Concatenates all our XMP data so we may return it.
-fn concat_xmp(jpeg_xmp: JpegXmp) -> Result<MaybeParsedXmp, JpegConstructionError> {
+fn concat_xmp(jpeg_xmp: JpegXmp) -> Result<Xmp, JpegConstructionError> {
     log::trace!("Concatenating XMP...");
 
     debug_assert!(
@@ -566,9 +564,7 @@ fn concat_xmp(jpeg_xmp: JpegXmp) -> Result<MaybeParsedXmp, JpegConstructionError
 
     // then, concatenate them and return!
     let concat: Xmp = standard.combine(extended);
-    Ok(MaybeParsedXmp::Parsed(Wrapped(Arc::new(RwLock::new(
-        concat,
-    )))))
+    Ok(concat)
 }
 
 /// Gets and removes the GUID from the given standard XMP.

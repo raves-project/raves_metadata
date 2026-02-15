@@ -1,9 +1,5 @@
 //! MP4-related stuff.
 
-use std::sync::Arc;
-
-use parking_lot::RwLock;
-
 use winnow::{
     Parser,
     error::{ContextError, EmptyError},
@@ -11,20 +7,15 @@ use winnow::{
 };
 
 use crate::{
-    MaybeParsedXmp, MetadataProvider, MetadataProviderRaw,
+    MetadataProvider,
     providers::shared::bmff::{BoxHeader, BoxType, XMP_UUID, ftyp::FtypBox},
+    xmp::{Xmp, error::XmpError},
 };
 
 /// An MPEG-4 (MP4) file.
 #[derive(Clone, Debug)]
 pub struct Mp4 {
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
-}
-
-impl MetadataProviderRaw for Mp4 {
-    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
-    }
+    xmp: Option<Result<Xmp, XmpError>>,
 }
 
 impl MetadataProvider for Mp4 {
@@ -41,6 +32,14 @@ impl MetadataProvider for Mp4 {
         input: &impl AsRef<[u8]>,
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         parse(input.as_ref())
+    }
+
+    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
+        &None
+    }
+
+    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
+        &self.xmp
     }
 }
 
@@ -89,9 +88,7 @@ fn parse(mut input: &[u8]) -> Result<Mp4, Mp4ConstructionError> {
     let raw_xmp_bytes = parse_boxes_until_xmp(&mut input);
 
     Ok(Mp4 {
-        xmp: Arc::new(RwLock::new(
-            raw_xmp_bytes.map(|raw| MaybeParsedXmp::Raw(raw.to_vec())),
-        )),
+        xmp: raw_xmp_bytes.map(Xmp::new_from_bytes),
     })
 }
 
@@ -207,9 +204,9 @@ mod tests {
 
         let xmp = mp4
             .xmp()
+            .clone()
             .expect("this file has XMP embedded")
             .expect("should find the XMP data");
-        let locked_xmp = xmp.read();
 
         let common_array_element: XmpElement = XmpElement {
             namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
@@ -248,7 +245,7 @@ mod tests {
             },
         ]);
 
-        let mut got = locked_xmp.document().values_ref().to_vec();
+        let mut got = xmp.document().values_ref().to_vec();
         got.sort_by_key(|a| a.name.clone());
 
         assert_eq!(got, expected);

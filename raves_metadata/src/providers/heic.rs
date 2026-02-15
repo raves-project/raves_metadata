@@ -6,7 +6,7 @@
 //! You might prefer AVIF for better efficiency and freely permitted usage.
 
 use crate::{
-    MetadataProvider, MetadataProviderRaw,
+    MetadataProvider,
     providers::shared::bmff::heif::{HeifLike, HeifLikeConstructionError},
 };
 
@@ -16,16 +16,6 @@ const SUPPORTED_HEIC_BRANDS: &[[u8; 4]] = &[*b"heic"];
 #[derive(Clone, Debug)]
 pub struct Heic {
     heic_like: HeifLike,
-}
-
-impl MetadataProviderRaw for Heic {
-    fn exif_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedExif>>> {
-        self.heic_like.exif_raw()
-    }
-
-    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedXmp>>> {
-        self.heic_like.xmp_raw()
-    }
 }
 
 impl MetadataProvider for Heic {
@@ -41,6 +31,14 @@ impl MetadataProvider for Heic {
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         HeifLike::parse(&mut input.as_ref(), SUPPORTED_HEIC_BRANDS)
             .map(|heic_like| Heic { heic_like })
+    }
+
+    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
+        &self.heic_like.exif
+    }
+
+    fn xmp(&self) -> &Option<Result<crate::xmp::Xmp, crate::xmp::error::XmpError>> {
+        &self.heic_like.xmp
     }
 }
 
@@ -70,12 +68,12 @@ mod tests {
         // grab exif
         let exif = file
             .exif()
+            .clone()
             .expect("file has exif")
             .expect("exif should be well-formed");
-        let exif_locked = exif.read();
 
         // grab its exif ifd
-        let exif_ifd = exif_locked
+        let exif_ifd = exif
             .ifds
             .first()
             .expect("should have an ifd")
