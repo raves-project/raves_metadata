@@ -1,7 +1,7 @@
 //! AVIF, the "AV1 Video Format", is a high-efficiency image format.
 
 use crate::{
-    MetadataProvider, MetadataProviderRaw,
+    MetadataProvider,
     providers::shared::bmff::heif::{HeifLike, HeifLikeConstructionError},
 };
 
@@ -12,16 +12,6 @@ pub const SUPPORTED_AVIF_BRANDS: &[[u8; 4]] = &[*b"avif", *b"avis"];
 #[derive(Clone, Debug)]
 pub struct Avif {
     heic_like: HeifLike,
-}
-
-impl MetadataProviderRaw for Avif {
-    fn exif_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedExif>>> {
-        self.heic_like.exif_raw()
-    }
-
-    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<crate::MaybeParsedXmp>>> {
-        self.heic_like.xmp_raw()
-    }
 }
 
 impl MetadataProvider for Avif {
@@ -37,6 +27,14 @@ impl MetadataProvider for Avif {
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         HeifLike::parse(&mut input.as_ref(), SUPPORTED_AVIF_BRANDS)
             .map(|heic_like| Avif { heic_like })
+    }
+
+    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
+        &self.heic_like.exif
+    }
+
+    fn xmp(&self) -> &Option<Result<crate::xmp::Xmp, crate::xmp::error::XmpError>> {
+        &self.heic_like.xmp
     }
 }
 
@@ -63,11 +61,11 @@ mod tests {
         // construct the xmp
         let xmp = file
             .xmp()
+            .clone()
             .expect("XMP is supported + provided in file")
             .expect("XMP should be present");
-        let xmp_locked = xmp.read();
 
-        let mut xmp_values = xmp_locked.document().values_ref().to_vec();
+        let mut xmp_values = xmp.document().values_ref().to_vec();
         xmp_values.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap());
 
         assert_eq!(
@@ -81,15 +79,15 @@ mod tests {
         );
 
         // parse exif
-        let exif = file
+        let mut exif = file
             .exif()
+            .clone()
             .expect("exif should be supported")
             .expect("exif should be found");
-        let mut exif_locked = exif.write();
 
         // ensure only one ifd
-        assert_eq!(exif_locked.ifds.len(), 1, "should only be one ifd");
-        let ifd: Ifd = exif_locked.ifds.remove(0);
+        assert_eq!(exif.ifds.len(), 1, "should only be one ifd");
+        let ifd: Ifd = exif.ifds.remove(0);
 
         // grab same gimp timestamp above
         let gimp_timestamp: Vec<Field> = ifd
@@ -125,11 +123,11 @@ mod tests {
 
         let xmp = file
             .xmp()
+            .clone()
             .expect("XMP is supported + provided in file")
             .expect("XMP should be present");
-        let xmp_locked = xmp.read();
 
-        let mut xmp_values = xmp_locked.document().values_ref().to_vec();
+        let mut xmp_values = xmp.document().values_ref().to_vec();
         xmp_values.sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap());
 
         assert_eq!(
@@ -145,14 +143,14 @@ mod tests {
             },
         );
 
-        let exif = file
+        let mut exif = file
             .exif()
+            .clone()
             .expect("exif should be supported")
             .expect("exif should be found");
-        let mut exif_locked = exif.write();
 
-        assert_eq!(exif_locked.ifds.len(), 1, "should only be one ifd");
-        let ifd: Ifd = exif_locked.ifds.remove(0);
+        assert_eq!(exif.ifds.len(), 1, "should only be one ifd");
+        let ifd: Ifd = exif.ifds.remove(0);
 
         let gimp_timestamp: Vec<Field> = ifd
             .fields
@@ -196,15 +194,15 @@ mod tests {
         assert!(file.xmp().is_none(), "file only has exif - no xmp.");
 
         // parse exif
-        let exif = file
+        let mut exif = file
             .exif()
+            .clone()
             .expect("exif should be supported + found")
             .expect("exif should be well-formed");
-        let mut exif_locked = exif.write();
 
         // ensure only one ifd
-        assert_eq!(exif_locked.ifds.len(), 1, "should only be one ifd");
-        let ifd: Ifd = exif_locked.ifds.remove(0);
+        assert_eq!(exif.ifds.len(), 1, "should only be one ifd");
+        let ifd: Ifd = exif.ifds.remove(0);
 
         // grab same gimp timestamp above
         let gimp_timestamp: Vec<Field> = ifd

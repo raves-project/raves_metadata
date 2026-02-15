@@ -1,9 +1,10 @@
 //! Contains a metadata provider for the PNG format.
 
-use parking_lot::RwLock;
-use std::sync::Arc;
-
-use crate::{MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw};
+use crate::{
+    MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
+    xmp::{Xmp, error::XmpError},
+};
 use winnow::{
     binary::be_u32,
     combinator::peek,
@@ -21,18 +22,8 @@ pub const PNG_SIGNATURE: &[u8; 8] = &[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 
 /// It can store all three supported metadata standards directly in the file.
 #[derive(Clone, Debug)]
 pub struct Png {
-    exif: Arc<RwLock<Option<MaybeParsedExif>>>,
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
-}
-
-impl MetadataProviderRaw for Png {
-    fn exif_raw(&self) -> Arc<RwLock<Option<MaybeParsedExif>>> {
-        Arc::clone(&self.exif)
-    }
-
-    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
-    }
+    exif: Option<Result<Exif, ExifFatalError>>,
+    xmp: Option<Result<Xmp, XmpError>>,
 }
 
 impl MetadataProvider for Png {
@@ -57,9 +48,17 @@ impl MetadataProvider for Png {
 
         // return any metadata we found inside this `self`...
         Ok(Self {
-            exif: Arc::new(RwLock::new(exif.map(|p| MaybeParsedExif::Raw(p.into())))),
-            xmp: Arc::new(RwLock::new(xmp.map(|r| MaybeParsedXmp::Raw(r.into())))),
+            exif: exif.map(|mut r| Exif::new(&mut r)),
+            xmp: xmp.map(Xmp::new),
         })
+    }
+
+    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
+        &self.exif
+    }
+
+    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
+        &self.xmp
     }
 }
 
@@ -450,18 +449,17 @@ mod tests {
 
         let xmp = png
             .xmp()
+            .clone()
             .expect("this PNG has XMP")
             .expect("get XMP from PNG");
-        let locked_xmp = xmp.read();
 
         assert_eq!(
-            locked_xmp.document().values_ref().len(),
+            xmp.document().values_ref().len(),
             1_usize,
             "should only parse that one struct"
         );
         assert_eq!(
-            locked_xmp
-                .document()
+            xmp.document()
                 .values_ref()
                 .first()
                 .expect("must have an item"),
@@ -485,11 +483,11 @@ mod tests {
 
         let exif = png
             .exif()
+            .clone()
             .expect("PNG contains Exif")
             .expect("Exif is well-formed");
-        let exif_locked = exif.read();
 
-        let a = exif_locked.ifds.first().unwrap();
+        let a = exif.ifds.first().unwrap();
 
         let expected_field_tag = FieldTag::Known(KnownTag::Ifd0Tag(Ifd0Tag::XResolution));
         assert_eq!(

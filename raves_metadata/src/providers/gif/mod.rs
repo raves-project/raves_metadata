@@ -3,11 +3,13 @@
 pub mod block;
 pub mod error;
 
-use parking_lot::RwLock;
-use std::sync::Arc;
 use winnow::Parser;
 
-use crate::{MaybeParsedXmp, MetadataProvider, MetadataProviderRaw};
+use crate::{
+    MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
+    xmp::{Xmp, error::XmpError},
+};
 use block::{
     ApplicationExtension, CommentExtension, GifHeader, GlobalColorTable, GraphicControlExtension,
     ImageDescriptor, LocalColorTable, LogicalScreenDescriptor, PlainTextExtension,
@@ -41,7 +43,7 @@ pub struct Gif {
     ///
     /// May not be parsed yet, but the bytes are in there regardless, if the
     /// GIF blob had any XMP to provide.
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
+    xmp: Option<Result<Xmp, XmpError>>,
 }
 
 /// Any block in the GIF file after the header, logical screen descriptor, and
@@ -393,9 +395,11 @@ impl MetadataProvider for Gif {
 
             if let Some(magic_trailer_len) = magic_trailer_len {
                 log::trace!("XMP packet found!");
-                xmp = Some(MaybeParsedXmp::Raw(
-                    ext.application_data[..ext.application_data.len() - magic_trailer_len].to_vec(),
-                ));
+
+                let raw_xmp: &[u8] =
+                    &ext.application_data[..ext.application_data.len() - magic_trailer_len];
+
+                xmp = Some(Xmp::new_from_bytes(raw_xmp));
                 repeatable_blocks.remove(block_idx);
                 continue;
             } else {
@@ -408,14 +412,16 @@ impl MetadataProvider for Gif {
             logical_screen_descriptor,
             global_color_table,
             repeatable_blocks: vec![],
-            xmp: Arc::new(RwLock::new(xmp)),
+            xmp,
         })
     }
-}
 
-impl MetadataProviderRaw for Gif {
-    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
+    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
+        &None
+    }
+
+    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
+        &self.xmp
     }
 }
 
@@ -458,10 +464,11 @@ mod tests {
 
         let xmp = gif
             .xmp()
+            .clone()
             .expect("XMP should be present")
             .expect("xmp should have parsed correctly");
 
-        let mut actual = xmp.read().document().values_ref().to_vec();
+        let mut actual = xmp.document().values_ref().to_vec();
         actual.sort_by(|a, b| a.name.cmp(&b.name));
 
         let mut expected = vec![
@@ -533,11 +540,12 @@ mod tests {
 
         let xmp = gif
             .xmp()
+            .clone()
             .expect("XMP should be present")
             .expect("xmp should have parsed correctly");
 
         assert_eq!(
-            xmp.read().document().values_ref(),
+            xmp.document().values_ref(),
             &[
                 XmpElement {
                     namespace: "http://purl.org/dc/elements/1.1/".into(),

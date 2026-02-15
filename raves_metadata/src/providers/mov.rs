@@ -4,14 +4,12 @@
 //! does, however, refer to boxes as "atoms", which is practically a semantic
 //! difference instead of a behavioral one.
 
-use std::sync::Arc;
-
-use parking_lot::RwLock;
 use winnow::{Parser, error::EmptyError, token::take};
 
 use crate::{
-    MaybeParsedXmp, MetadataProvider, MetadataProviderRaw,
+    MetadataProvider,
     providers::shared::bmff::{BoxHeader, BoxSize, BoxType, XMP_BOX_ID, XMP_UUID, ftyp::FtypBox},
+    xmp::{Xmp, error::XmpError},
 };
 
 /// A QuickTime File Format (QTFF) movie file.
@@ -19,7 +17,7 @@ use crate::{
 /// Contains XMP metadata exclusively.
 #[derive(Clone, Debug)]
 pub struct Mov {
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
+    xmp: Option<Result<Xmp, XmpError>>,
 }
 
 /// Parses the `ftyp` atom from the QuickTime file, if possible.
@@ -121,9 +119,7 @@ fn parse(mut input: &[u8]) -> Result<Mov, MovConstructionError> {
     let xmp: Option<&[u8]> = parse_atoms_until_xmp(&mut input);
 
     Ok(Mov {
-        xmp: Arc::new(RwLock::new(
-            xmp.map(|raw| MaybeParsedXmp::Raw(raw.to_vec())),
-        )),
+        xmp: xmp.map(Xmp::new_from_bytes),
     })
 }
 
@@ -284,12 +280,6 @@ fn recurse_until_xmp<'input>(
     None
 }
 
-impl MetadataProviderRaw for Mov {
-    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
-    }
-}
-
 impl MetadataProvider for Mov {
     type ConstructionError = MovConstructionError;
 
@@ -302,6 +292,14 @@ impl MetadataProvider for Mov {
         input: &impl AsRef<[u8]>,
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         parse(input.as_ref())
+    }
+
+    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
+        &None
+    }
+
+    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
+        &self.xmp
     }
 }
 
@@ -346,13 +344,12 @@ mod tests {
 
         let xmp = mov
             .xmp()
+            .clone()
             .expect("the file contains xmp")
             .expect("the xmp ctor should succeed");
-        let xmp_locked = xmp.read();
 
         assert_eq!(
-            xmp_locked
-                .document()
+            xmp.document()
                 .values_ref()
                 .iter()
                 .find(|v| v.name == "creator")

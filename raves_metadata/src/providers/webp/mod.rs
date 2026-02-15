@@ -1,11 +1,12 @@
 //! WebP-related types.
 
-use std::sync::Arc;
-
-use parking_lot::RwLock;
 use winnow::{Parser as _, binary::u8, error::EmptyError, token::take};
 
-use crate::{MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw};
+use crate::{
+    MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
+    xmp::{Xmp, error::XmpError},
+};
 
 use self::{chunk::RiffChunk, error::WebpConstructionError, header::WebpFileHeader};
 
@@ -19,18 +20,8 @@ mod header;
 pub struct Webp {
     _header: WebpFileHeader,
     // relevant_chunks: Vec<(RiffChunk, &'file [u8])>,
-    exif: Arc<RwLock<Option<MaybeParsedExif>>>,
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
-}
-
-impl MetadataProviderRaw for Webp {
-    fn exif_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<MaybeParsedExif>>> {
-        Arc::clone(&self.exif)
-    }
-
-    fn xmp_raw(&self) -> std::sync::Arc<parking_lot::RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
-    }
+    exif: Option<Result<Exif, ExifFatalError>>,
+    xmp: Option<Result<Xmp, XmpError>>,
 }
 
 impl MetadataProvider for Webp {
@@ -63,8 +54,8 @@ impl MetadataProvider for Webp {
         // create an empty type for the file based on those two
         let mut s = Self {
             _header: header,
-            exif: Arc::new(const { RwLock::new(None) }),
-            xmp: Arc::new(const { RwLock::new(None) }),
+            exif: None,
+            xmp: None,
         };
 
         let mut relevant_chunks = const { Vec::new() };
@@ -177,16 +168,18 @@ impl MetadataProvider for Webp {
         const EXIF_CHUNK_HEADER: [u8; 4] = *b"EXIF";
         const XMP_CHUNK_HEADER: [u8; 4] = *b"XMP ";
 
-        s.exif = Arc::new(RwLock::new(
-            find_chunk(EXIF_CHUNK_HEADER, &relevant_chunks)
-                .map(|r| MaybeParsedExif::Raw(Vec::from(r))),
-        ));
-        s.xmp = Arc::new(RwLock::new(
-            find_chunk(XMP_CHUNK_HEADER, &relevant_chunks)
-                .map(|r| MaybeParsedXmp::Raw(Vec::from(r))),
-        ));
+        s.exif = find_chunk(EXIF_CHUNK_HEADER, &relevant_chunks).map(|mut r| Exif::new(&mut r));
+        s.xmp = find_chunk(XMP_CHUNK_HEADER, &relevant_chunks).map(Xmp::new_from_bytes);
 
         Ok(s)
+    }
+
+    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
+        &self.exif
+    }
+
+    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
+        &self.xmp
     }
 }
 
@@ -347,12 +340,12 @@ mod tests {
         // parse the xmp
         let xmp = webp
             .xmp()
+            .clone()
             .expect("XMP is supported _and_ provided in the file")
             .expect("the XMP should construct correctly");
-        let locked_xmp = xmp.read();
 
         assert_eq!(
-            locked_xmp.document().values_ref().first().unwrap(),
+            xmp.document().values_ref().first().unwrap(),
             &XmpElement {
                 namespace: "https://barretts.club".into(),
                 prefix: "my_ns".into(),
@@ -372,8 +365,8 @@ mod tests {
         let webp: Webp = Webp::new(bytes).unwrap();
 
         // there isn't any metadata
-        assert!(webp.exif.read().is_none());
-        assert!(webp.xmp.read().is_none());
+        assert!(webp.exif.is_none());
+        assert!(webp.xmp.is_none());
     }
 
     #[test]
@@ -386,13 +379,13 @@ mod tests {
         // parse the xmp
         let xmp = webp
             .xmp()
+            .clone()
             .expect("XMP is supported _and_ provided in the file")
             .expect("the XMP should construct correctly");
-        let locked_xmp = xmp.read();
 
         // note: this is the same check as one in the `xmp` module
         assert_eq!(
-            locked_xmp.document().values_ref().to_vec(),
+            xmp.document().values_ref().to_vec(),
             vec![XmpElement {
                 namespace: "http://purl.org/dc/elements/1.1/".into(),
                 prefix: "dc".into(),
@@ -428,11 +421,14 @@ mod tests {
         let file = include_bytes!("../../../assets/providers/webp/RIFF.webp");
         let webp: Webp = Webp::new(file).unwrap();
 
-        let exif = webp.exif().expect("file has exif").expect("exif is valid");
-        let locked_exif = exif.read().clone();
+        let exif = webp
+            .exif()
+            .clone()
+            .expect("file has exif")
+            .expect("exif is valid");
 
         assert_eq!(
-            locked_exif,
+            exif,
             Exif {
                 endianness: Endianness::Big,
                 ifds: vec![Ifd {

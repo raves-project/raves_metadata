@@ -3,9 +3,11 @@
 //! It uses an unfortunate internal structure that's difficult to parse and
 //! edit, so this crate treads lightly.
 
-use crate::{MaybeParsedExif, MaybeParsedXmp, MetadataProvider, MetadataProviderRaw};
-use parking_lot::RwLock;
-use std::sync::Arc;
+use crate::{
+    MetadataProvider,
+    exif::{Exif, error::ExifFatalError},
+    xmp::{Xmp, error::XmpError},
+};
 
 mod error;
 mod parse;
@@ -15,18 +17,8 @@ pub use error::JpegConstructionError;
 /// A JPEG file.
 #[derive(Clone, Debug)]
 pub struct Jpeg {
-    exif: Arc<RwLock<Option<MaybeParsedExif>>>,
-    xmp: Arc<RwLock<Option<MaybeParsedXmp>>>,
-}
-
-impl MetadataProviderRaw for Jpeg {
-    fn exif_raw(&self) -> Arc<RwLock<Option<MaybeParsedExif>>> {
-        Arc::clone(&self.exif)
-    }
-
-    fn xmp_raw(&self) -> Arc<RwLock<Option<MaybeParsedXmp>>> {
-        Arc::clone(&self.xmp)
-    }
+    exif: Option<Result<Exif, ExifFatalError>>,
+    xmp: Option<Result<Xmp, XmpError>>,
 }
 
 impl MetadataProvider for Jpeg {
@@ -40,6 +32,14 @@ impl MetadataProvider for Jpeg {
         input: &impl AsRef<[u8]>,
     ) -> Result<Self, <Self as MetadataProvider>::ConstructionError> {
         parse::parse(input.as_ref())
+    }
+
+    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
+        &self.exif
+    }
+
+    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
+        &self.xmp
     }
 }
 
@@ -63,8 +63,8 @@ mod tests {
         let file = include_bytes!("../../../assets/providers/jpeg/Cat-in-da-hat.jpg");
         let jpeg = Jpeg::new(file).unwrap();
 
-        assert!(jpeg.exif.read().is_none());
-        assert!(jpeg.xmp.read().is_none());
+        assert!(jpeg.exif.is_none());
+        assert!(jpeg.xmp.is_none());
     }
 
     #[test]
@@ -74,15 +74,11 @@ mod tests {
         let file = include_bytes!("../../../assets/providers/jpeg/Calico_Cat_Asleep.jpg");
         let jpeg = Jpeg::new(file).unwrap();
 
-        let exif = jpeg.exif().unwrap().unwrap();
-        let xmp = jpeg.xmp().unwrap().unwrap();
-
-        let locked_exif = exif.read();
-        let locked_xmp = xmp.read();
+        let exif = jpeg.exif().clone().unwrap().unwrap();
+        let xmp = jpeg.xmp().clone().unwrap().unwrap();
 
         assert_eq!(
-            locked_exif
-                .ifds
+            exif.ifds
                 .first()
                 .unwrap()
                 .fields
@@ -100,8 +96,7 @@ mod tests {
         );
 
         assert_eq!(
-            locked_xmp
-                .document()
+            xmp.document()
                 .values_ref()
                 .iter()
                 .find(|f| f.prefix == "dc" && f.name == "subject")
@@ -137,12 +132,10 @@ mod tests {
         );
         let jpeg = Jpeg::new(file).unwrap();
 
-        let exif = jpeg.exif().unwrap().unwrap();
-        let exif_locked = exif.read();
+        let exif = jpeg.exif().clone().unwrap().unwrap();
 
         assert_eq!(
-            exif_locked
-                .ifds
+            exif.ifds
                 .first()
                 .unwrap()
                 .fields
@@ -178,15 +171,13 @@ mod tests {
         // this file contains extended xmp, but no actual extendedxmp blocks.
         //
         // let's grab the concatenated version we made
-        let xmp = jpeg.xmp().unwrap().unwrap();
-        let locked_xmp = xmp.read();
+        let xmp = jpeg.xmp().clone().unwrap().unwrap();
 
         // should still contain the original tags.
         //
         // here's one of those:
         assert_eq!(
-            locked_xmp
-                .document()
+            xmp.document()
                 .values_ref()
                 .iter()
                 .find(|f| f.prefix == "aux" && f.name == "Lens")
@@ -211,12 +202,10 @@ mod tests {
         // this file contains extended xmp, but no actual extendedxmp blocks.
         //
         // let's grab the concatenated version we made
-        let xmp = jpeg.xmp().unwrap().unwrap();
-        let locked_xmp = xmp.read();
+        let xmp = jpeg.xmp().clone().unwrap().unwrap();
 
         assert!(
-            locked_xmp
-                .document()
+            xmp.document()
                 .values_ref()
                 .iter()
                 .any(|v| v.name == "Data" && v.prefix == "GImage")
