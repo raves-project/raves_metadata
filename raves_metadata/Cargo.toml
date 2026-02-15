@@ -1,7 +1,7 @@
 [package]
 name = "raves_metadata"
 description = "A library to parse metadata from media files"
-version = "0.0.3"
+version = "0.0.4"
 readme = "../README.md"
 
 # avoid publishing test assets or the tests themselves
