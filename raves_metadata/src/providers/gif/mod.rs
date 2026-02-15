@@ -439,4 +439,127 @@ mod tests {
         let gif = super::Gif::new(&GIF_FROM_GIFLIB).unwrap();
         println!("{gif:?}");
     }
+
+    #[test]
+    fn wikimedia_commons_sample_gif() {
+        logger();
+
+        const INPUT: &[u8] =
+            include_bytes!("../../../assets/providers/gif/Work_in_progress__animated.gif");
+
+        let parsed: Option<AnyProvider> = crate::parse(&INPUT);
+
+        let Some(AnyProvider::Gif(gif)) = parsed else {
+            panic!("Not a GIF! err: {parsed:?}");
+        };
+
+        let gif = gif.expect("should not error on parsing");
+
+        let xmp = gif
+            .xmp()
+            .expect("XMP should be present")
+            .expect("xmp should have parsed correctly");
+
+        let mut actual = xmp.read().document().values_ref().to_vec();
+        actual.sort_by(|a, b| a.name.cmp(&b.name));
+
+        let mut expected = vec![
+            XmpElement {
+                namespace: "http://purl.org/dc/elements/1.1/".into(),
+                prefix: "dc".into(),
+                name: "subject".into(),
+                value: raves_metadata_types::xmp::XmpValue::UnorderedArray(vec![XmpElement {
+                    namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                    prefix: "rdf".into(),
+                    name: "li".into(),
+                    value: raves_metadata_types::xmp::XmpValue::Simple(
+                        raves_metadata_types::xmp::XmpPrimitive::Text(
+                            "this better save xmp".into(),
+                        ),
+                    ),
+                }]),
+            },
+            XmpElement {
+                namespace: "http://ns.adobe.com/xap/1.0/".into(),
+                prefix: "xmp".into(),
+                name: "CreateDate".into(),
+                value: raves_metadata_types::xmp::XmpValue::Simple(
+                    raves_metadata_types::xmp::XmpPrimitive::Date(
+                        "2026-02-15T02:20:20-06:00".into(),
+                    ),
+                ),
+            },
+            XmpElement {
+                namespace: "http://ns.adobe.com/xap/1.0/".into(),
+                prefix: "xmp".into(),
+                name: "MetadataDate".into(),
+                value: raves_metadata_types::xmp::XmpValue::Simple(
+                    raves_metadata_types::xmp::XmpPrimitive::Date(
+                        "2026-02-15T02:20:31-06:00".into(),
+                    ),
+                ),
+            },
+            XmpElement {
+                namespace: "http://ns.adobe.com/xap/1.0/".into(),
+                prefix: "xmp".into(),
+                name: "ModifyDate".into(),
+                value: raves_metadata_types::xmp::XmpValue::Simple(
+                    raves_metadata_types::xmp::XmpPrimitive::Date(
+                        "2026-02-15T02:20:31-06:00".into(),
+                    ),
+                ),
+            },
+        ];
+        expected.sort_by(|a, b| a.name.cmp(&b.name));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn sample_from_photopea() {
+        logger();
+
+        const INPUT: &[u8] =
+            include_bytes!("../../../assets/providers/gif/sample_from_photopea.gif");
+
+        let parsed: Option<AnyProvider> = crate::parse(&INPUT);
+
+        let Some(AnyProvider::Gif(gif)) = parsed else {
+            panic!("Not a GIF! err: {parsed:?}");
+        };
+
+        let gif = gif.expect("should not error on parsing");
+
+        let xmp = gif
+            .xmp()
+            .expect("XMP should be present")
+            .expect("xmp should have parsed correctly");
+
+        assert_eq!(
+            xmp.read().document().values_ref(),
+            &[
+                XmpElement {
+                    namespace: "http://purl.org/dc/elements/1.1/".into(),
+                    prefix: "dc".into(),
+                    name: "creator".into(),
+                    value: raves_metadata_types::xmp::XmpValue::OrderedArray(vec![XmpElement {
+                        namespace: "http://www.w3.org/1999/02/22-rdf-syntax-ns#".into(),
+                        prefix: "rdf".into(),
+                        name: "li".into(),
+                        value: raves_metadata_types::xmp::XmpValue::Simple(
+                            raves_metadata_types::xmp::XmpPrimitive::Text("Barrett Ray".into())
+                        )
+                    }])
+                },
+                XmpElement {
+                    namespace: "http://ns.adobe.com/xap/1.0/".into(),
+                    prefix: "xmp".into(),
+                    name: "Nickname".into(),
+                    value: raves_metadata_types::xmp::XmpValue::Simple(
+                        raves_metadata_types::xmp::XmpPrimitive::Text("cool image".into())
+                    )
+                },
+            ]
+        );
+    }
 }
