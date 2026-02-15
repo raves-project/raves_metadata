@@ -17,7 +17,6 @@ rust-version.workspace = true
 
 [dependencies]
 log = "0.4.27"
-parking_lot = "0.12.4"
 raves_metadata_types = { version = "0.0.2", path = "../raves_metadata_types" }
 winnow = "0.7.11"
 
