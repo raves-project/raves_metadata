@@ -2,13 +2,24 @@
 
 This file is ordered from newest to oldest.
 
+== v0.1.0
+
+- Remove locking on inner metadata types
+  - This change is in preparation for write support; we'll use objects less like a resource and more like a metadata "snapshot".
+  - When it comes time to write, we'll compare length and hashes to know if we need to reparse first.
+  - Also, making this change allows us to remove the `parking_lot` dependency, which is great!
+- Remove lazy metadata parsing
+  - Eager parsing seems to be the same amount of "efficient" for most files, as we already gotta parse them anyway!
+- Simplify API (one `MetadataProvider`)
+  - In other words, there's no longer a `MetadataProviderRaw`!
+
 == v0.0.4
 
 Add support for the GIF file format.
 
 == v0.0.3
 
-Use the newest version of `raves_metdata_types`.
+Use the newest version of `raves_metadata_types`.
 
 == v0.0.2
 
