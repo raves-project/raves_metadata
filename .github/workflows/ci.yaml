@@ -30,7 +30,7 @@ jobs:
         run: cargo binstall --no-confirm --force rust-script
 
       - name: Lint the project
-        run: cargo clippy -- -A unused_variables
+        run: cargo clippy -- --deny warnings
 
       - name: Run tests
         run: cargo nextest run --no-fail-fast
