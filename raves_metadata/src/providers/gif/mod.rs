@@ -16,15 +16,16 @@ use error::GifConstructionError;
 
 /// A parsed GIF (Graphics Interchange Format) file.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Gif {
     /// The GIF's header.
     header: GifHeader,
 
     /// This file's logical screen descriptor block.
-    logical_screen_descriptor: LogicalScreenDescriptor,
+    pub logical_screen_descriptor: LogicalScreenDescriptor,
 
     /// The file's global color table block, if present.
-    global_color_table: Option<GlobalColorTable>,
+    pub global_color_table: Option<GlobalColorTable>,
 
     /// A number of repeatable blocks.
     ///
@@ -34,7 +35,7 @@ pub struct Gif {
     /// **NOTE**: If XMP was found in the file, it was removed from this list
     /// and provided through the typical API. **Please refrain from iterating
     /// over this list to find XMP data -- you won't find any.**
-    repeatable_blocks: Vec<RepeatableBlock>,
+    pub repeatable_blocks: Vec<RepeatableBlock>,
 
     /// Stored XMP.
     ///
