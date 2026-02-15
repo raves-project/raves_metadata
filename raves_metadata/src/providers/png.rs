@@ -53,12 +53,12 @@ impl MetadataProvider for Png {
         })
     }
 
-    fn exif(&self) -> &Option<Result<Exif, ExifFatalError>> {
-        &self.exif
+    fn exif(&self) -> Option<Result<&Exif, &ExifFatalError>> {
+        self.exif.as_ref().map(|r| r.as_ref())
     }
 
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
-        &self.xmp
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>> {
+        self.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -449,7 +449,6 @@ mod tests {
 
         let xmp = png
             .xmp()
-            .clone()
             .expect("this PNG has XMP")
             .expect("get XMP from PNG");
 
@@ -483,7 +482,6 @@ mod tests {
 
         let exif = png
             .exif()
-            .clone()
             .expect("PNG contains Exif")
             .expect("Exif is well-formed");
 

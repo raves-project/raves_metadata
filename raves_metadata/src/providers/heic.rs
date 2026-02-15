@@ -33,12 +33,12 @@ impl MetadataProvider for Heic {
             .map(|heic_like| Heic { heic_like })
     }
 
-    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
-        &self.heic_like.exif
+    fn exif(&self) -> Option<Result<&crate::exif::Exif, &crate::exif::error::ExifFatalError>> {
+        self.heic_like.exif.as_ref().map(|r| r.as_ref())
     }
 
-    fn xmp(&self) -> &Option<Result<crate::xmp::Xmp, crate::xmp::error::XmpError>> {
-        &self.heic_like.xmp
+    fn xmp(&self) -> Option<Result<&crate::xmp::Xmp, &crate::xmp::error::XmpError>> {
+        self.heic_like.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -68,7 +68,6 @@ mod tests {
         // grab exif
         let exif = file
             .exif()
-            .clone()
             .expect("file has exif")
             .expect("exif should be well-formed");
 

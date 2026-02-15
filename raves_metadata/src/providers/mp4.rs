@@ -34,12 +34,12 @@ impl MetadataProvider for Mp4 {
         parse(input.as_ref())
     }
 
-    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
-        &None
+    fn exif(&self) -> Option<Result<&crate::exif::Exif, &crate::exif::error::ExifFatalError>> {
+        None
     }
 
-    fn xmp(&self) -> &Option<Result<Xmp, XmpError>> {
-        &self.xmp
+    fn xmp(&self) -> Option<Result<&Xmp, &XmpError>> {
+        self.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -204,7 +204,6 @@ mod tests {
 
         let xmp = mp4
             .xmp()
-            .clone()
             .expect("this file has XMP embedded")
             .expect("should find the XMP data");
 

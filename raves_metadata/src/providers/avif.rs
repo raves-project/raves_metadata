@@ -29,12 +29,12 @@ impl MetadataProvider for Avif {
             .map(|heic_like| Avif { heic_like })
     }
 
-    fn exif(&self) -> &Option<Result<crate::exif::Exif, crate::exif::error::ExifFatalError>> {
-        &self.heic_like.exif
+    fn exif(&self) -> Option<Result<&crate::exif::Exif, &crate::exif::error::ExifFatalError>> {
+        self.heic_like.exif.as_ref().map(|r| r.as_ref())
     }
 
-    fn xmp(&self) -> &Option<Result<crate::xmp::Xmp, crate::xmp::error::XmpError>> {
-        &self.heic_like.xmp
+    fn xmp(&self) -> Option<Result<&crate::xmp::Xmp, &crate::xmp::error::XmpError>> {
+        self.heic_like.xmp.as_ref().map(|r| r.as_ref())
     }
 }
 
@@ -61,7 +61,6 @@ mod tests {
         // construct the xmp
         let xmp = file
             .xmp()
-            .clone()
             .expect("XMP is supported + provided in file")
             .expect("XMP should be present");
 
@@ -79,15 +78,14 @@ mod tests {
         );
 
         // parse exif
-        let mut exif = file
+        let exif = file
             .exif()
-            .clone()
             .expect("exif should be supported")
             .expect("exif should be found");
 
         // ensure only one ifd
         assert_eq!(exif.ifds.len(), 1, "should only be one ifd");
-        let ifd: Ifd = exif.ifds.remove(0);
+        let ifd: Ifd = exif.ifds[0].clone();
 
         // grab same gimp timestamp above
         let gimp_timestamp: Vec<Field> = ifd
@@ -123,7 +121,6 @@ mod tests {
 
         let xmp = file
             .xmp()
-            .clone()
             .expect("XMP is supported + provided in file")
             .expect("XMP should be present");
 
@@ -143,14 +140,13 @@ mod tests {
             },
         );
 
-        let mut exif = file
+        let exif = file
             .exif()
-            .clone()
             .expect("exif should be supported")
             .expect("exif should be found");
 
         assert_eq!(exif.ifds.len(), 1, "should only be one ifd");
-        let ifd: Ifd = exif.ifds.remove(0);
+        let ifd: Ifd = exif.ifds[0].clone();
 
         let gimp_timestamp: Vec<Field> = ifd
             .fields
@@ -194,15 +190,14 @@ mod tests {
         assert!(file.xmp().is_none(), "file only has exif - no xmp.");
 
         // parse exif
-        let mut exif = file
+        let exif = file
             .exif()
-            .clone()
             .expect("exif should be supported + found")
             .expect("exif should be well-formed");
 
         // ensure only one ifd
         assert_eq!(exif.ifds.len(), 1, "should only be one ifd");
-        let ifd: Ifd = exif.ifds.remove(0);
+        let ifd: Ifd = exif.ifds[0].clone();
 
         // grab same gimp timestamp above
         let gimp_timestamp: Vec<Field> = ifd
