@@ -40,12 +40,10 @@
 
 use crate::{
     exif::{Exif, error::ExifFatalError},
-    iptc::{Iptc, error::IptcError},
     xmp::{Xmp, error::XmpError},
 };
 
 pub mod exif;
-pub mod iptc;
 pub mod magic_number;
 pub mod providers;
 pub mod xmp;
@@ -132,26 +130,6 @@ pub trait MetadataProvider:
     /// This will return an error if the file's metadata is malformed or
     /// corrupted.
     fn exif(&self) -> Option<Result<&Exif, &ExifFatalError>>;
-
-    /// Parses `self` to find any IPTC metadata.
-    ///
-    /// This returns `None` if IPTC isn't supported, or if the file has no IPTC
-    /// metadata.
-    ///
-    /// All IPTC blocks are combined into one list of `(key, value)` pairs.
-    ///
-    /// # Errors
-    ///
-    /// This will return an error if the file's metadata is malformed or
-    /// corrupted.
-    fn iptc(&self) -> Option<Result<&Iptc, &IptcError>> {
-        log::error!(
-            "Attempted to parse for IPTC, but IPTC IIC isn't \
-            implemented in this library yet. \
-            Returning None..."
-        );
-        None
-    }
 
     /// Parses `self` to find any XMP metadata.
     ///

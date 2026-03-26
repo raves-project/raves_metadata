@@ -297,22 +297,6 @@ mod tests {
         }
     }
 
-    /// Attempting to grab IPTC for a file should return `None`.
-    ///
-    /// It shouldn't error or anything, though!
-    #[test]
-    fn ensure_iptc_is_unsupported() {
-        logger();
-
-        let simple_webp: &[u8] = &make_webp_sample(vec![(b"VP8 ", [0_u8; 100].as_slice())]);
-        let webp: Webp = Webp::new(&simple_webp).unwrap();
-
-        assert!(
-            webp.iptc().is_none(),
-            "iptc is unsupported and should return None"
-        );
-    }
-
     /// XMP parsing should work fine.
     #[test]
     fn check_xmp() {

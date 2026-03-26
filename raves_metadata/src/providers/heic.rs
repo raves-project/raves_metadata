@@ -62,7 +62,6 @@ mod tests {
         let file: Heic = Heic::new(&blob).expect("parse as heic");
 
         // it should only have exif
-        assert!(file.iptc().is_none(), "iptc unsupported");
         assert!(file.xmp().is_none(), "xmp not present in file");
 
         // grab exif

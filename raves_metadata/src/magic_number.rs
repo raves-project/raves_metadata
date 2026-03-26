@@ -167,26 +167,6 @@ macro_rules! generate {
                 }
             }
 
-            /// Gets IPTC metadata from inner
-            /// [`MetadataProvider`][`crate::MetadataProvider`].
-            ///
-            /// For more information, see:
-            ///
-            /// [`MetadataProvider::iptc`][`crate::MetadataProvider::iptc`]
-            pub fn iptc(&self) -> Option<Result<&crate::Iptc, &crate::IptcError>> {
-                match self {
-                    $(
-                        Self::$variant(maybe_inner) => {
-                            let Ok(inner) = maybe_inner else {
-                                ::log::error!("The inner provider is an error, not `Ok`. Cannot get metadata.");
-                                return None;
-                            };
-                            <$provider_ty as $crate::MetadataProvider>::iptc(inner)
-                        },
-                    )+
-                }
-            }
-
             /// Gets XMP metadata from inner
             /// [`MetadataProvider`][`crate::MetadataProvider`].
             ///

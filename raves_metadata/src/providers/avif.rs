@@ -184,12 +184,6 @@ mod tests {
         let bytes = include_bytes!("../../assets/providers/avif/bbb_4k.avif");
         let file: Avif = Avif::new(bytes).unwrap();
 
-        // ensure that iptc doesn't work (not supported)
-        assert!(
-            file.iptc().is_none(),
-            "to my knowledge, iptc isn't supported in HEIC formats"
-        );
-
         // ensure that there's no xmp
         assert!(file.xmp().is_none(), "file only has exif - no xmp.");
 
