@@ -18,6 +18,9 @@ This file is ordered from newest to oldest.
   - Use struct-like parsing style for XMP unions.
   - Make XMP struct fields require namespaces.
 - Add support for writing XMP (through #link("https://docs.rs/raves_metadata/latest/raves_metadata/xmp/struct.Xmp.html#method.write")[the `Xmp::write` method]).
+- Removed `Iptc4Xmp` parser.
+  - It was an alternative XMP parser that only cared about IPTC types.
+  - The parser didn't follow spec -- doesn't make sense to keep it.
 
 == v0.0.4
 
